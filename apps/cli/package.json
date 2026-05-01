@@ -1,0 +1,21 @@
+{
+  "name": "@agent-workbench/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "agent-workbench": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agent-workbench/server": "0.1.0",
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}

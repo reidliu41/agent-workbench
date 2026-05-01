@@ -1,0 +1,20 @@
+{
+  "name": "@agent-workbench/adapters",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@agent-workbench/core": "0.1.0",
+    "@agent-workbench/protocol": "0.1.0",
+    "@agentclientprotocol/sdk": "^0.16.1"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.8.3"
+  }
+}

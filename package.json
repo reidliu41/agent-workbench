@@ -1,0 +1,48 @@
+{
+  "name": "@agent-workbench/cli",
+  "version": "0.1.2",
+  "private": false,
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "agent-workbench": "./dist/cli/index.js"
+  },
+  "files": [
+    "README.md",
+    "agent-workbench.png",
+    "docs",
+    "dist",
+    "apps/web/dist"
+  ],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm run dev -w @agent-workbench/server\" \"npm run dev -w @agent-workbench/web\"",
+    "build": "npm run build --workspaces --if-present",
+    "build:package": "npm run build -w @agent-workbench/web && esbuild apps/cli/src/index.ts --bundle --platform=node --format=esm --banner:js='import { createRequire } from \"node:module\"; const require = createRequire(import.meta.url);' --external:node-pty --outfile=dist/cli/index.js && node scripts/chmod-package-bin.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "serve": "tsx apps/cli/src/index.ts serve",
+    "doctor": "tsx apps/cli/src/index.ts doctor",
+    "pack:local": "npm run build:package && npm_config_cache=/tmp/agent-workbench-npm-cache npm pack",
+    "smoke": "node scripts/smoke.mjs && tsx scripts/queue-smoke.ts"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^0.16.1",
+    "@fastify/websocket": "^11.0.2",
+    "commander": "^13.1.0",
+    "fastify": "^5.3.2",
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "concurrently": "^9.1.2",
+    "esbuild": "^0.25.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}
