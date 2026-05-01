@@ -70,19 +70,23 @@ export function TerminalPanel({
   const [attached, setAttached] = useState(false);
   const [clipboardStatus, setClipboardStatus] = useState<string>();
   const [isUploadingClipboardImage, setIsUploadingClipboardImage] = useState(false);
+  const [claudeTrustPromptVisible, setClaudeTrustPromptVisible] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "listening" | "unsupported" | "error">(() =>
     speechRecognitionConstructor() ? "idle" : "unsupported",
   );
   const linkedGemini = linkedGeminiSessionId(task);
   const linkedCodex = linkedCodexSessionId(task);
+  const linkedClaude = linkedClaudeSessionId(task);
   const waitingForGeminiSession = isGeminiWorkbenchSession(task) && !linkedGemini;
   const waitingForCodexSession = isCodexWorkbenchSession(task) && !linkedCodex;
+  const waitingForClaudeSession = isClaudeWorkbenchSession(task) && !linkedClaude;
 
   useEffect(() => {
     setActiveCommand(undefined);
     setStatus("idle");
     setAttached(false);
     setClipboardStatus(undefined);
+    setClaudeTrustPromptVisible(false);
     setIsUploadingClipboardImage(false);
     autoAttachAttemptedRef.current = false;
     let nextSelectedCommand = defaultTerminalCommandForTask(task);
@@ -285,10 +289,14 @@ export function TerminalPanel({
         return;
       }
       if (parsed.type === "terminal.output" && "data" in parsed && typeof parsed.data === "string") {
+        const output = parsed.data;
         if (suppressInputRef.current) {
           armReplaySettleTimer();
         }
-        terminalParts.terminal.write(normalizeTerminalOutput(parsed.data, command));
+        if (isClaudeCliCommand(command)) {
+          setClaudeTrustPromptVisible((visible) => detectClaudeTrustPrompt(output) || visible);
+        }
+        terminalParts.terminal.write(normalizeTerminalOutput(output, command));
       }
       if (parsed.type === "terminal.status" && "terminal" in parsed && parsed.terminal) {
         if (suppressInputRef.current) {
@@ -340,6 +348,9 @@ export function TerminalPanel({
       taskId: task.id,
       type: "terminal.input",
     }));
+    if (data.trim() || data === "\r" || data === "\n") {
+      setClaudeTrustPromptVisible(false);
+    }
     terminalRef.current?.focus();
     return true;
   }
@@ -543,13 +554,25 @@ export function TerminalPanel({
     <div className="terminal-panel">
       <div className="terminal-toolbar">
         <div className="terminal-toolbar-copy">
-          <strong>{linkedGemini ? `Gemini ${linkedGemini}` : linkedCodex ? `Codex ${linkedCodex}` : activeCommand ? activeCommand : "CLI terminal"}</strong>
+          <strong>
+            {linkedGemini
+              ? `Gemini ${linkedGemini}`
+              : linkedCodex
+                ? `Codex ${linkedCodex}`
+                : linkedClaude
+                  ? `Claude ${linkedClaude}`
+                  : activeCommand
+                    ? activeCommand
+                    : "CLI terminal"}
+          </strong>
           <small>
             {linkedGemini
               ? "Resumes the bound native Gemini session."
               : linkedCodex
                 ? "Resumes the bound native Codex session."
-                : task.worktreePath ?? "No worktree"}
+                : linkedClaude
+                  ? "Resumes the bound native Claude Code session."
+                  : task.worktreePath ?? "No worktree"}
           </small>
         </div>
         <span className={`terminal-status ${status}`}>{status}</span>
@@ -583,6 +606,13 @@ export function TerminalPanel({
               codex resume {truncateMiddle(linkedCodex, 18)}
             </p>
           </>
+        ) : linkedClaude ? (
+          <>
+            <strong className="terminal-command-label">Session</strong>
+            <p className="terminal-command-note" title={linkedClaudeCommand(task) ?? `claude --resume ${linkedClaude}`}>
+              {task.agentSessionResumeMode === "resume" ? "claude --resume" : "claude --session-id"} {truncateMiddle(linkedClaude, 18)}
+            </p>
+          </>
         ) : waitingForGeminiSession ? (
           <>
             <strong className="terminal-command-label">Session</strong>
@@ -592,6 +622,11 @@ export function TerminalPanel({
           <>
             <strong className="terminal-command-label">Session</strong>
             <p className="terminal-command-note">Attach starts `codex` once. After Codex writes its native session metadata, Workbench links it and future attaches use resume.</p>
+          </>
+        ) : waitingForClaudeSession ? (
+          <>
+            <strong className="terminal-command-label">Session</strong>
+            <p className="terminal-command-note">Attach starts `claude --session-id` with a fixed Workbench id. Future attaches use `claude --resume`.</p>
           </>
         ) : (
           <>
@@ -636,6 +671,11 @@ export function TerminalPanel({
           Detach
         </button>
         {clipboardStatus ? <small className="terminal-clipboard-status">{clipboardStatus}</small> : null}
+        {claudeTrustPromptVisible ? (
+          <button className="secondary compact-button" onClick={() => writeTerminalInput("\r")} type="button">
+            Trust folder
+          </button>
+        ) : null}
       </div>
       <div
         className={`terminal-container ${isUploadingClipboardImage ? "uploading" : ""}`}
@@ -665,6 +705,10 @@ function resolvedTerminalCommand(selectedCommand: string, customCommand: string,
   if (selectedCommand === "codex" && linkedCodex) {
     return linkedCodex;
   }
+  const linkedClaude = linkedClaudeResumeCommand(task);
+  if (selectedCommand === "claude" && linkedClaude) {
+    return linkedClaude;
+  }
   return selectedCommand === "custom" ? customCommand.trim() : selectedCommand.trim();
 }
 
@@ -676,6 +720,18 @@ function linkedGeminiResumeCommand(task?: Task): string | undefined {
 function linkedCodexResumeCommand(task?: Task): string | undefined {
   const sessionId = linkedCodexSessionId(task);
   return sessionId ? `codex resume ${sessionId}` : undefined;
+}
+
+function linkedClaudeResumeCommand(task?: Task): string | undefined {
+  const sessionId = linkedClaudeSessionId(task);
+  if (!sessionId) {
+    return undefined;
+  }
+  return task?.agentSessionResumeMode === "resume" ? `claude --resume ${sessionId}` : `claude --session-id ${sessionId}`;
+}
+
+function linkedClaudeCommand(task?: Task): string | undefined {
+  return linkedClaudeResumeCommand(task);
 }
 
 function linkedGeminiSessionId(task?: Task): string | undefined {
@@ -704,8 +760,27 @@ function linkedCodexSessionId(task?: Task): string | undefined {
   return undefined;
 }
 
+function linkedClaudeSessionId(task?: Task): string | undefined {
+  if (!task?.agentSessionId) {
+    return undefined;
+  }
+  if (task.backendId !== "claude") {
+    return undefined;
+  }
+  if (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported")) {
+    return task.agentSessionId;
+  }
+  return undefined;
+}
+
 function defaultTerminalCommandForTask(task?: Task): string {
-  return task?.backendId === "codex" ? "codex" : "gemini";
+  if (task?.backendId === "codex") {
+    return "codex";
+  }
+  if (task?.backendId === "claude") {
+    return "claude";
+  }
+  return "gemini";
 }
 
 function truncateMiddle(value: string, maxLength: number): string {
@@ -779,12 +854,24 @@ function isGeminiCliCommand(command: string): boolean {
   return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
 }
 
+function isClaudeCliCommand(command: string): boolean {
+  return command === "claude" || /^claude\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
+}
+
+function detectClaudeTrustPrompt(data: string): boolean {
+  return data.includes("Quick safety check") || data.includes("Yes, I trust this folder");
+}
+
 function isGeminiWorkbenchSession(task?: Task): boolean {
   return task?.backendId === "gemini" || task?.backendId === "gemini-acp";
 }
 
 function isCodexWorkbenchSession(task?: Task): boolean {
   return task?.backendId === "codex";
+}
+
+function isClaudeWorkbenchSession(task?: Task): boolean {
+  return task?.backendId === "claude";
 }
 
 function installTerminalPasteListener(container: HTMLDivElement, onPaste: (event: ClipboardEvent) => void): () => void {

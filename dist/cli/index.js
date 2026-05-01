@@ -8785,7 +8785,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter: EventEmitter2 } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join8 } = __require("path");
+    var { join: join9 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -8821,7 +8821,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join8(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join9(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         trackUnmanagedFds: false,
@@ -9212,7 +9212,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var { existsSync: existsSync2 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join8, isAbsolute: isAbsolute2, sep: sep2 } = __require("node:path");
+    var { join: join9, isAbsolute: isAbsolute2, sep: sep2 } = __require("node:path");
     var { fileURLToPath: fileURLToPath3 } = __require("node:url");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
@@ -9365,7 +9365,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join8(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join9(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -9383,7 +9383,7 @@ var require_transport = __commonJS({
           });
         });
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join8(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join9(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -9406,7 +9406,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join8(__dirname, "..", "file.js");
+          return join9(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -10386,7 +10386,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join8 = ",";
+            let join9 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -10400,7 +10400,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join8 = `,
+                join9 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10408,13 +10408,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join8;
+                res += join9;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join8}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join9}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10435,7 +10435,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join8 = `,
+              join9 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10449,13 +10449,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join8;
+                separator = join9;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join8;
+              separator = join9;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -10496,7 +10496,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join8 = ",";
+            let join9 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -10509,7 +10509,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join8 = `,
+                join9 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10517,13 +10517,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join8;
+                res += join9;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join8}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join9}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10536,7 +10536,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join8 = `,
+              join9 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10545,7 +10545,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join8;
+                separator = join9;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -10603,20 +10603,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join9 = `,
+              const join10 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join9;
+                res2 += join10;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join9}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join10}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -10632,16 +10632,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join8 = `,
+            const join9 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join8, maximumBreadth);
+              res += stringifyTypedArray(value, join9, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join8;
+              separator = join9;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -10652,13 +10652,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join8;
+                separator = join9;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join8;
+              separator = join9;
             }
             if (separator !== "") {
               res = `
@@ -31183,7 +31183,7 @@ var require_safe_regex2 = __commonJS({
     "use strict";
     var parse3 = require_dist3();
     var { types } = require_dist3();
-    function walk(node, opts, starHeight) {
+    function walk2(node, opts, starHeight) {
       let i;
       let ok;
       let len;
@@ -31196,14 +31196,14 @@ var require_safe_regex2 = __commonJS({
       const options = node.options || node.value?.options;
       if (options) {
         for (i = 0, len = options.length; i < len; i++) {
-          ok = walk({ stack: options[i] }, opts, starHeight);
+          ok = walk2({ stack: options[i] }, opts, starHeight);
           if (!ok) return false;
         }
       }
       const stack = node.stack || node.value?.stack;
       if (!stack) return true;
       for (i = 0, len = stack.length; i < len; i++) {
-        ok = walk(stack[i], opts, starHeight);
+        ok = walk2(stack[i], opts, starHeight);
         if (!ok) return false;
       }
       return true;
@@ -31216,7 +31216,7 @@ var require_safe_regex2 = __commonJS({
       if (isRegExp(re)) re = re.source;
       else if (typeof re !== "string") re = String(re);
       try {
-        return walk(parse3(re), opts, 0);
+        return walk2(parse3(re), opts, 0);
       } catch {
         return false;
       }
@@ -41361,7 +41361,7 @@ var require_buffer_list = __commonJS({
         }
       }, {
         key: "join",
-        value: function join8(s) {
+        value: function join9(s) {
           if (this.length === 0) return "";
           var p = this.head;
           var ret = "" + p.data;
@@ -44533,10 +44533,10 @@ var require_websocket2 = __commonJS({
 });
 
 // apps/cli/src/index.ts
-import { spawn as spawn8 } from "node:child_process";
+import { spawn as spawn9 } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { stat as stat3 } from "node:fs/promises";
-import { dirname as dirname5, join as join7 } from "node:path";
+import { stat as stat4 } from "node:fs/promises";
+import { dirname as dirname5, join as join8 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // node_modules/commander/esm.mjs
@@ -45061,14 +45061,166 @@ function parseStatusPorcelain(status) {
 
 // packages/core/src/orchestrator/workbenchOrchestrator.ts
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir as mkdir2, readFile as readFile3, readdir as readdir3, stat, writeFile as writeFile2 } from "node:fs/promises";
-import { dirname, extname, isAbsolute, join as join3, relative, resolve as resolve3, sep } from "node:path";
-import { homedir as homedir3 } from "node:os";
+import { appendFile, mkdir as mkdir2, readFile as readFile4, readdir as readdir4, stat as stat2, writeFile as writeFile2 } from "node:fs/promises";
+import { dirname, extname, isAbsolute, join as join4, relative, resolve as resolve3, sep } from "node:path";
+import { homedir as homedir4 } from "node:os";
+
+// packages/core/src/integrations/claudeSessions.ts
+import { access, readdir, readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { homedir } from "node:os";
+async function listClaudeProjectSessions(projectPath) {
+  const sessions = [];
+  for (const file2 of await findClaudeSessionFiles(claudeProjectDirectory(projectPath))) {
+    const session = await readClaudeSessionFile(file2);
+    if (session?.cwd === projectPath) {
+      sessions.push(session);
+    }
+  }
+  return sessions.filter((session, index, all) => all.findIndex((candidate) => candidate.id === session.id) === index).sort((left, right) => Date.parse(right.lastUpdated) - Date.parse(left.lastUpdated));
+}
+async function findClaudeProjectSession(projectPath, sessionId) {
+  const direct = await readClaudeSessionFile(join(claudeProjectDirectory(projectPath), `${sessionId}.jsonl`));
+  if (direct) {
+    return direct;
+  }
+  for (const file2 of await findClaudeSessionFiles()) {
+    if (!file2.endsWith(`${sessionId}.jsonl`)) {
+      continue;
+    }
+    const session = await readClaudeSessionFile(file2);
+    if (session?.cwd === projectPath) {
+      return session;
+    }
+  }
+  return void 0;
+}
+async function findLatestClaudeProjectSession(projectPath, createdAfter) {
+  const createdAfterMs = createdAfter ? Date.parse(createdAfter) - 6e4 : 0;
+  const sessions = [];
+  const directDir = claudeProjectDirectory(projectPath);
+  for (const file2 of await findClaudeSessionFiles(directDir)) {
+    const session = await readClaudeSessionFile(file2);
+    if (!session || session.cwd !== projectPath) {
+      continue;
+    }
+    if (createdAfterMs && Date.parse(session.startTime) < createdAfterMs) {
+      continue;
+    }
+    sessions.push(session);
+  }
+  sessions.sort((left, right) => Date.parse(right.lastUpdated) - Date.parse(left.lastUpdated));
+  return sessions[0];
+}
+function claudeProjectDirectory(projectPath) {
+  return join(claudeHome(), "projects", encodeClaudeProjectPath(projectPath));
+}
+function encodeClaudeProjectPath(projectPath) {
+  return projectPath.replaceAll("/", "-");
+}
+function claudeHome() {
+  return process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
+}
+async function findClaudeSessionFiles(root = join(claudeHome(), "projects")) {
+  try {
+    await access(root);
+  } catch {
+    return [];
+  }
+  const files = [];
+  await walk(root, files);
+  return files.filter((file2) => file2.endsWith(".jsonl"));
+}
+async function walk(directory, files) {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const fullPath = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await walk(fullPath, files);
+      continue;
+    }
+    if (entry.isFile()) {
+      files.push(fullPath);
+    }
+  }
+}
+async function readClaudeSessionFile(filePath) {
+  try {
+    await stat(filePath);
+  } catch {
+    return void 0;
+  }
+  let raw;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch {
+    return void 0;
+  }
+  const id = filePath.split("/").at(-1)?.replace(/\.jsonl$/, "");
+  if (!id) {
+    return void 0;
+  }
+  let cwd;
+  let firstUserMessage = "";
+  let lastUpdated = "";
+  let messageCount = 0;
+  let startTime = "";
+  let version2;
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.trim()) {
+      continue;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const timestamp = typeof parsed.timestamp === "string" ? parsed.timestamp : void 0;
+    if (timestamp) {
+      startTime ||= timestamp;
+      lastUpdated = timestamp;
+    }
+    if (typeof parsed.cwd === "string") {
+      cwd = parsed.cwd;
+    }
+    if (typeof parsed.version === "string") {
+      version2 = parsed.version;
+    }
+    if (parsed.type === "user") {
+      messageCount += 1;
+      if (!firstUserMessage) {
+        const message = parsed.message;
+        if (message && typeof message === "object" && "content" in message) {
+          const content = message.content;
+          if (typeof content === "string" && !content.startsWith("<local-command-")) {
+            firstUserMessage = content.slice(0, 200);
+          }
+        }
+      }
+    }
+  }
+  return {
+    cwd,
+    fileName: filePath.split("/").at(-1),
+    firstUserMessage,
+    id,
+    lastUpdated: lastUpdated || startTime || (/* @__PURE__ */ new Date(0)).toISOString(),
+    messageCount,
+    startTime: startTime || lastUpdated || (/* @__PURE__ */ new Date(0)).toISOString(),
+    version: version2
+  };
+}
 
 // packages/core/src/integrations/codexSessions.ts
-import { readFile, readdir } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { readFile as readFile2, readdir as readdir2 } from "node:fs/promises";
+import { homedir as homedir2 } from "node:os";
+import { join as join2, resolve } from "node:path";
 async function listCodexProjectSessions(projectRoot, includeEmpty = false) {
   const root = normalizePath(projectRoot);
   const files = await findCodexRolloutFiles(codexSessionsDir());
@@ -45095,7 +45247,7 @@ async function findLatestCodexProjectSession(projectRoot, since) {
 async function findCodexRolloutFiles(root) {
   let entries;
   try {
-    entries = await readdir(root, { encoding: "utf8", withFileTypes: true });
+    entries = await readdir2(root, { encoding: "utf8", withFileTypes: true });
   } catch (error48) {
     if (isNodeError(error48, "ENOENT")) {
       return [];
@@ -45104,7 +45256,7 @@ async function findCodexRolloutFiles(root) {
   }
   const nested = await Promise.all(
     entries.map(async (entry) => {
-      const path = join(root, entry.name);
+      const path = join2(root, entry.name);
       if (entry.isDirectory()) {
         return findCodexRolloutFiles(path);
       }
@@ -45114,7 +45266,7 @@ async function findCodexRolloutFiles(root) {
   return nested.flat();
 }
 async function loadCodexProjectSession(filePath, includeEmpty) {
-  const raw = await readFile(filePath, "utf8");
+  const raw = await readFile2(filePath, "utf8");
   const session = parseCodexSessionText(raw, filePath, includeEmpty);
   if (!session) {
     throw new Error(`Codex session not found in ${filePath}`);
@@ -45212,7 +45364,7 @@ function timestampFromRolloutFileName(fileName) {
   return Number.isNaN(Date.parse(iso)) ? void 0 : iso;
 }
 function codexSessionsDir() {
-  return join(process.env.CODEX_HOME || join(homedir(), ".codex"), "sessions");
+  return join2(process.env.CODEX_HOME || join2(homedir2(), ".codex"), "sessions");
 }
 function normalizePath(path) {
   return resolve(path);
@@ -45226,9 +45378,9 @@ function isNodeError(error48, code) {
 
 // packages/core/src/integrations/geminiSessions.ts
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readFile as readFile2, readdir as readdir2, writeFile } from "node:fs/promises";
-import { homedir as homedir2 } from "node:os";
-import { basename as basename2, join as join2, resolve as resolve2 } from "node:path";
+import { copyFile, mkdir, readFile as readFile3, readdir as readdir3, writeFile } from "node:fs/promises";
+import { homedir as homedir3 } from "node:os";
+import { basename as basename2, join as join3, resolve as resolve2 } from "node:path";
 var GEMINI_SESSION_FILE_PREFIX = "session-";
 var GEMINI_PROJECT_ROOT_MARKER = ".project_root";
 async function listGeminiProjectSessions(projectRoot) {
@@ -45243,7 +45395,7 @@ async function listGeminiProjectSessionRecords(projectRoot, includeEmpty) {
   for (const chatsDir of chatsDirs) {
     let entries;
     try {
-      entries = await readdir2(chatsDir, { encoding: "utf8", withFileTypes: true });
+      entries = await readdir3(chatsDir, { encoding: "utf8", withFileTypes: true });
     } catch (error48) {
       if (isNodeError2(error48, "ENOENT")) {
         continue;
@@ -45253,7 +45405,7 @@ async function listGeminiProjectSessionRecords(projectRoot, includeEmpty) {
     sessions.push(
       ...await Promise.all(
         entries.filter((entry) => entry.isFile() && isGeminiSessionFile(entry.name)).map(async (entry) => {
-          const filePath = join2(chatsDir, entry.name);
+          const filePath = join3(chatsDir, entry.name);
           try {
             return await loadGeminiProjectSession(filePath, includeEmpty);
           } catch {
@@ -45269,7 +45421,7 @@ async function bridgeGeminiSessionToWorktree(projectRoot, worktreePath, sessionI
   const resolved = await resolveGeminiProjectSession(projectRoot, sessionId);
   const targetDir = await geminiChatsDir(worktreePath);
   await mkdir(targetDir, { recursive: true });
-  await copyFile(resolved.filePath, join2(targetDir, basename2(resolved.filePath)));
+  await copyFile(resolved.filePath, join3(targetDir, basename2(resolved.filePath)));
   return resolved.session;
 }
 async function resolveGeminiProjectSession(projectRoot, sessionId) {
@@ -45278,7 +45430,7 @@ async function resolveGeminiProjectSession(projectRoot, sessionId) {
   for (const chatsDir of chatsDirs) {
     let entries;
     try {
-      entries = await readdir2(chatsDir, { encoding: "utf8", withFileTypes: true });
+      entries = await readdir3(chatsDir, { encoding: "utf8", withFileTypes: true });
       sawDirectory = true;
     } catch (error48) {
       if (isNodeError2(error48, "ENOENT")) {
@@ -45290,7 +45442,7 @@ async function resolveGeminiProjectSession(projectRoot, sessionId) {
       if (!entry.isFile() || !isGeminiSessionFile(entry.name)) {
         continue;
       }
-      const filePath = join2(chatsDir, entry.name);
+      const filePath = join3(chatsDir, entry.name);
       const session = await loadGeminiProjectSession(filePath).catch(() => void 0);
       if (session?.id === sessionId) {
         return { filePath, session };
@@ -45303,7 +45455,7 @@ async function resolveGeminiProjectSession(projectRoot, sessionId) {
   throw new Error(`Gemini session not found: ${sessionId}`);
 }
 async function loadGeminiProjectSession(filePath, includeEmpty = false) {
-  const raw = await readFile2(filePath, "utf8");
+  const raw = await readFile3(filePath, "utf8");
   return parseGeminiSessionText(raw, basename2(filePath), includeEmpty);
 }
 function parseGeminiSessionText(raw, fileName, includeEmpty) {
@@ -45412,11 +45564,11 @@ async function geminiCandidateChatsDirs(projectRoot) {
   return current === legacy ? [current] : [current, legacy];
 }
 async function geminiChatsDir(projectRoot) {
-  return join2(geminiTmpDir(), await geminiProjectIdentifier(projectRoot), "chats");
+  return join3(geminiTmpDir(), await geminiProjectIdentifier(projectRoot), "chats");
 }
 async function geminiProjectIdentifier(projectRoot) {
   const normalized = normalizeGeminiProjectPath(projectRoot);
-  const registryPath = join2(geminiHomeDir(), "projects.json");
+  const registryPath = join3(geminiHomeDir(), "projects.json");
   const registry2 = await readGeminiProjectsRegistry(registryPath);
   const existing = registry2.projects?.[normalized];
   if (existing && await geminiSlugBelongsToProject(existing, normalized)) {
@@ -45433,7 +45585,7 @@ async function geminiProjectIdentifier(projectRoot) {
 }
 async function readGeminiProjectsRegistry(registryPath) {
   try {
-    const raw = await readFile2(registryPath, "utf8");
+    const raw = await readFile3(registryPath, "utf8");
     const parsed = JSON.parse(raw);
     return { projects: parsed.projects && typeof parsed.projects === "object" ? parsed.projects : {} };
   } catch (error48) {
@@ -45459,9 +45611,9 @@ async function claimGeminiProjectSlug(projectRoot, existingMappings) {
 }
 async function geminiSlugBelongsToProject(slug, projectRoot) {
   for (const baseDir of geminiProjectBaseDirs()) {
-    const markerPath = join2(baseDir, slug, GEMINI_PROJECT_ROOT_MARKER);
+    const markerPath = join3(baseDir, slug, GEMINI_PROJECT_ROOT_MARKER);
     try {
-      const owner = (await readFile2(markerPath, "utf8")).trim();
+      const owner = (await readFile3(markerPath, "utf8")).trim();
       if (normalizeGeminiProjectPath(owner) !== normalizeGeminiProjectPath(projectRoot)) {
         return false;
       }
@@ -45476,9 +45628,9 @@ async function geminiSlugBelongsToProject(slug, projectRoot) {
 }
 async function geminiSlugBelongsToAnotherProject(slug, projectRoot) {
   for (const baseDir of geminiProjectBaseDirs()) {
-    const markerPath = join2(baseDir, slug, GEMINI_PROJECT_ROOT_MARKER);
+    const markerPath = join3(baseDir, slug, GEMINI_PROJECT_ROOT_MARKER);
     try {
-      const owner = (await readFile2(markerPath, "utf8")).trim();
+      const owner = (await readFile3(markerPath, "utf8")).trim();
       if (normalizeGeminiProjectPath(owner) !== normalizeGeminiProjectPath(projectRoot)) {
         return true;
       }
@@ -45494,8 +45646,8 @@ async function geminiSlugBelongsToAnotherProject(slug, projectRoot) {
 async function ensureGeminiOwnershipMarkers(slug, projectRoot) {
   const normalized = normalizeGeminiProjectPath(projectRoot);
   for (const baseDir of geminiProjectBaseDirs()) {
-    const slugDir = join2(baseDir, slug);
-    const markerPath = join2(slugDir, GEMINI_PROJECT_ROOT_MARKER);
+    const slugDir = join3(baseDir, slug);
+    const markerPath = join3(slugDir, GEMINI_PROJECT_ROOT_MARKER);
     await mkdir(slugDir, { recursive: true });
     try {
       await writeFile(markerPath, normalized, { encoding: "utf8", flag: "wx" });
@@ -45503,7 +45655,7 @@ async function ensureGeminiOwnershipMarkers(slug, projectRoot) {
       if (!isNodeError2(error48, "EEXIST")) {
         throw error48;
       }
-      const owner = (await readFile2(markerPath, "utf8")).trim();
+      const owner = (await readFile3(markerPath, "utf8")).trim();
       if (normalizeGeminiProjectPath(owner) !== normalized) {
         throw new Error(`Gemini project id ${slug} is already owned by ${owner}`);
       }
@@ -45511,19 +45663,19 @@ async function ensureGeminiOwnershipMarkers(slug, projectRoot) {
   }
 }
 function legacyGeminiChatsDir(projectRoot) {
-  return join2(geminiTmpDir(), geminiProjectHash(projectRoot), "chats");
+  return join3(geminiTmpDir(), geminiProjectHash(projectRoot), "chats");
 }
 function geminiProjectHash(projectRoot) {
   return createHash("sha256").update(normalizeGeminiProjectPath(projectRoot)).digest("hex");
 }
 function geminiProjectBaseDirs() {
-  return [geminiTmpDir(), join2(geminiHomeDir(), "history")];
+  return [geminiTmpDir(), join3(geminiHomeDir(), "history")];
 }
 function geminiTmpDir() {
-  return join2(geminiHomeDir(), "tmp");
+  return join3(geminiHomeDir(), "tmp");
 }
 function geminiHomeDir() {
-  return join2(homedir2(), ".gemini");
+  return join3(homedir3(), ".gemini");
 }
 function normalizeGeminiProjectPath(projectRoot) {
   return resolve2(projectRoot);
@@ -45581,7 +45733,7 @@ var WorkbenchOrchestrator = class {
     for (const backend of options.backends) {
       this.backends.set(backend.id, backend);
     }
-    this.worktreeRoot = options.worktreeRoot ?? join3(homedir3(), ".agent-workbench", "worktrees");
+    this.worktreeRoot = options.worktreeRoot ?? join4(homedir4(), ".agent-workbench", "worktrees");
   }
   options;
   activeTurns = /* @__PURE__ */ new Map();
@@ -45604,7 +45756,7 @@ var WorkbenchOrchestrator = class {
     }
     const branches = await this.options.git.listBranches(project.path);
     return {
-      branches: branches.filter((branch) => branch.checkedOutHere || !branch.name.startsWith("agent-workbench/")).map((branch) => ({
+      branches: branches.filter((branch) => !branch.name.startsWith("agent-workbench/")).map((branch) => ({
         active: branch.active,
         checkedOutHere: branch.checkedOutHere,
         checkedOutPath: branch.checkedOutPath,
@@ -45798,8 +45950,9 @@ var WorkbenchOrchestrator = class {
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const id = randomUUID();
     const worktreeBranch = `agent-workbench/${id}`;
-    const worktreePath = join3(this.worktreeRoot, project.name, id);
-    await this.options.git.createWorktree(project.path, worktreePath, worktreeBranch, input.baseBranch ?? project.defaultBranch);
+    const worktreePath = join4(this.worktreeRoot, project.name, id);
+    const baseBranch = input.baseBranch ?? await this.options.git.currentBranch(project.path).catch(() => project.defaultBranch);
+    await this.options.git.createWorktree(project.path, worktreePath, worktreeBranch, baseBranch ?? project.defaultBranch);
     let task = {
       id,
       projectId: project.id,
@@ -45846,19 +45999,13 @@ var WorkbenchOrchestrator = class {
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const id = randomUUID();
     const worktreeBranch = `agent-workbench/${id}`;
-    const worktreePath = join3(this.worktreeRoot, project.name, id);
-    const workingBranch = normalizeBranchName(input.workingBranch);
-    if (workingBranch) {
-      if (!await this.options.git.branchExists(project.path, workingBranch)) {
-        await this.options.git.createBranch(project.path, workingBranch);
-      }
-      await this.options.git.switchBranch(project.path, workingBranch);
-    }
-    const baseBranch = workingBranch || input.baseBranch || project.defaultBranch;
+    const worktreePath = join4(this.worktreeRoot, project.name, id);
+    const baseBranch = normalizeBranchName(input.workingBranch) || input.baseBranch || await this.options.git.currentBranch(project.path).catch(() => project.defaultBranch) || project.defaultBranch;
     await this.options.git.createWorktree(project.path, worktreePath, worktreeBranch, baseBranch);
     if (input.agentSessionId && isGeminiBackendId(backendId)) {
       await bridgeGeminiSessionToWorktree(project.path, worktreePath, input.agentSessionId);
     }
+    const nativeAgentSessionId = isClaudeBackendId(backendId) ? input.agentSessionId ?? randomUUID() : input.agentSessionId;
     let task = {
       id,
       projectId: project.id,
@@ -45866,9 +46013,10 @@ var WorkbenchOrchestrator = class {
       title: input.title?.trim() || "New session",
       prompt: "",
       status: "starting",
-      agentSessionId: input.agentSessionId,
-      agentSessionKind: input.agentSessionId && isNativeCliBackendId(backendId) ? "native-cli" : void 0,
+      agentSessionId: nativeAgentSessionId,
+      agentSessionKind: nativeAgentSessionId && isNativeCliBackendId(backendId) ? "native-cli" : void 0,
       agentSessionOrigin: isNativeCliBackendId(backendId) ? input.agentSessionId ? "imported" : "new" : void 0,
+      agentSessionResumeMode: input.agentSessionId && isNativeCliBackendId(backendId) ? "resume" : void 0,
       baseBranch,
       modeId: input.modeId,
       worktreePath,
@@ -45908,6 +46056,75 @@ var WorkbenchOrchestrator = class {
       modeId,
       projectId,
       title: nativeSession.displayName || nativeSession.firstUserMessage || "Imported Gemini session"
+    });
+  }
+  async listProjectNativeSessions(projectId, backendId) {
+    const project = (await this.options.store.listProjects()).find((item) => item.id === projectId);
+    if (!project) {
+      throw new Error("Project not found.");
+    }
+    const backendIds = backendId ? [backendId] : ["gemini-acp", "codex", "claude"];
+    const groups = await Promise.all(
+      backendIds.map(async (id) => {
+        if (id === "gemini-acp") {
+          return (await listGeminiProjectSessions(project.path)).map((session) => ({
+            backendId: "gemini-acp",
+            backendName: "Gemini CLI",
+            displayName: session.displayName,
+            fileName: session.fileName,
+            firstUserMessage: session.firstUserMessage,
+            id: session.id,
+            lastUpdated: session.lastUpdated,
+            messageCount: session.messageCount,
+            startTime: session.startTime,
+            summary: session.summary
+          }));
+        }
+        if (id === "codex") {
+          return (await listCodexProjectSessions(project.path, true)).map((session) => ({
+            backendId: "codex",
+            backendName: "OpenAI Codex",
+            displayName: session.displayName,
+            fileName: session.fileName,
+            firstUserMessage: session.firstUserMessage,
+            id: session.id,
+            lastUpdated: session.lastUpdated,
+            messageCount: session.messageCount,
+            startTime: session.startTime
+          }));
+        }
+        return (await listClaudeProjectSessions(project.path)).map((session) => ({
+          backendId: "claude",
+          backendName: "Claude Code",
+          displayName: session.firstUserMessage || session.id,
+          fileName: session.fileName,
+          firstUserMessage: session.firstUserMessage,
+          id: session.id,
+          lastUpdated: session.lastUpdated,
+          messageCount: session.messageCount,
+          startTime: session.startTime,
+          summary: session.version
+        }));
+      })
+    );
+    return groups.flat().sort((left, right) => Date.parse(right.lastUpdated) - Date.parse(left.lastUpdated));
+  }
+  async importNativeCliSession(projectId, backendId, sessionId, modeId) {
+    const project = (await this.options.store.listProjects()).find((item) => item.id === projectId);
+    if (!project) {
+      throw new Error("Project not found.");
+    }
+    const sessions = await this.listProjectNativeSessions(projectId, backendId);
+    const nativeSession = sessions.find((session) => session.id === sessionId);
+    if (!nativeSession) {
+      throw new Error(`${nativeCliBackendName(backendId)} session not found: ${sessionId}`);
+    }
+    return this.createSession({
+      agentSessionId: nativeSession.id,
+      backendId,
+      modeId,
+      projectId,
+      title: nativeSession.displayName || nativeSession.firstUserMessage || `Imported ${nativeSession.backendName} session`
     });
   }
   async sendSessionMessage(taskId, prompt) {
@@ -46400,11 +46617,19 @@ ${dirty.trim()}`);
   }
   async applyTarget(taskId) {
     const { project, worktreePath } = await this.requireSession(taskId);
-    const [originalBranch, originalHead] = await Promise.all([
+    const [branches, originalBranch, originalHead] = await Promise.all([
+      this.options.git.listBranches(project.path),
       this.options.git.currentBranch(project.path).catch(() => void 0),
       this.options.git.currentCommit(project.path)
     ]);
     return {
+      branches: branches.filter((branch) => branch.checkedOutHere || !branch.name.startsWith("agent-workbench/")).map((branch) => ({
+        active: branch.active,
+        checkedOutHere: branch.checkedOutHere,
+        checkedOutPath: branch.checkedOutPath,
+        name: branch.name,
+        updatedAt: branch.updatedAt
+      })),
       originalBranch,
       originalHead,
       projectPath: project.path,
@@ -46427,6 +46652,7 @@ ${dirty.trim()}`);
     }
     await this.emitAction(task.id, "apply", "started", "Applying session changes to original repository.");
     try {
+      await this.selectApplyTargetBranch(project.path, input);
       await this.assertApplyTarget(project.path, input);
       if (!patchText.trim()) {
         throw new Error("No session changes to apply.");
@@ -46449,11 +46675,13 @@ ${dirty.trim()}`);
       await this.options.git.checkApplyPatch(project.path, patchText);
       await this.createSessionPatchSnapshot(task, project, patchText, "before_apply", "Before apply");
       await this.options.git.applyPatch(project.path, patchText);
+      const targetBranch = await this.options.git.currentBranch(project.path).catch(() => void 0);
       const baseline = await this.options.git.commitAll(worktreePath, `Agent Workbench apply baseline: ${task.title}`);
       const updated = await this.updateTask({ ...task, baseBranch: baseline.commitSha, status: "applied", updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
       await this.captureDiff(updated);
       await this.emitAction(task.id, "apply", "completed", "Applied isolated session changes to original repository.", project.path, {
         projectPath: project.path,
+        targetBranch,
         summary
       });
       return {
@@ -46467,6 +46695,21 @@ ${dirty.trim()}`);
       throw error48;
     }
   }
+  async selectApplyTargetBranch(projectPath, input) {
+    const targetBranch = normalizeBranchName(input.targetBranch);
+    if (!targetBranch) {
+      return;
+    }
+    const currentBranch = await this.options.git.currentBranch(projectPath).catch(() => void 0);
+    if (currentBranch === targetBranch) {
+      return;
+    }
+    const exists = await this.options.git.branchExists(projectPath, targetBranch);
+    if (!exists) {
+      await this.options.git.createBranch(projectPath, targetBranch);
+    }
+    await this.options.git.switchBranch(projectPath, targetBranch);
+  }
   async assertApplyTarget(projectPath, input) {
     if (!input.expectedOriginalBranch && !input.expectedOriginalHead) {
       return;
@@ -46475,10 +46718,12 @@ ${dirty.trim()}`);
       this.options.git.currentBranch(projectPath).catch(() => void 0),
       this.options.git.currentCommit(projectPath)
     ]);
-    if (input.expectedOriginalBranch !== void 0 && input.expectedOriginalBranch !== currentBranch) {
+    const selectedTargetBranch = normalizeBranchName(input.targetBranch);
+    const intentionallyChangedTarget = selectedTargetBranch && selectedTargetBranch !== input.expectedOriginalBranch;
+    if (!intentionallyChangedTarget && input.expectedOriginalBranch !== void 0 && input.expectedOriginalBranch !== currentBranch) {
       throw new Error(`Original repository branch changed from ${input.expectedOriginalBranch || "detached HEAD"} to ${currentBranch || "detached HEAD"}. Reopen Apply and confirm the current target branch.`);
     }
-    if (input.expectedOriginalHead !== void 0 && input.expectedOriginalHead !== currentHead) {
+    if (!intentionallyChangedTarget && input.expectedOriginalHead !== void 0 && input.expectedOriginalHead !== currentHead) {
       throw new Error(`Original repository HEAD changed from ${input.expectedOriginalHead.slice(0, 12)} to ${currentHead.slice(0, 12)}. Reopen Apply and confirm the current target commit.`);
     }
   }
@@ -46506,7 +46751,7 @@ ${dirty.trim()}`);
       return false;
     }
     const [originalContent, sessionHeadContent] = await Promise.all([
-      readFile3(absolutePath, "utf8").catch(() => void 0),
+      readFile4(absolutePath, "utf8").catch(() => void 0),
       this.options.git.fileAtRef(worktreePath, "HEAD", path)
     ]);
     return originalContent !== void 0 && sessionHeadContent !== void 0 && originalContent === sessionHeadContent;
@@ -46945,7 +47190,7 @@ ${dirty.trim()}`);
       throw new Error("Snapshot not found.");
     }
     try {
-      const patchText = await readFile3(snapshot.patchPath, "utf8");
+      const patchText = await readFile4(snapshot.patchPath, "utf8");
       return {
         patchText,
         snapshot
@@ -46961,7 +47206,7 @@ ${dirty.trim()}`);
     return this.writeSessionSnapshot(task, project, patchText, summarizeDiff(patchText), kind, label);
   }
   async writeSessionSnapshot(task, project, patchText, summary, kind, label, description) {
-    const snapshotDir = join3(homedir3(), ".agent-workbench", "snapshots", sanitizePathSegment(project.name), task.id);
+    const snapshotDir = join4(homedir4(), ".agent-workbench", "snapshots", sanitizePathSegment(project.name), task.id);
     await mkdir2(snapshotDir, { recursive: true });
     const snapshot = {
       description: description?.trim() || void 0,
@@ -46969,7 +47214,7 @@ ${dirty.trim()}`);
       taskId: task.id,
       kind,
       label,
-      patchPath: join3(snapshotDir, `${Date.now()}-${sanitizePathSegment(label)}.patch`),
+      patchPath: join4(snapshotDir, `${Date.now()}-${sanitizePathSegment(label)}.patch`),
       summary,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
@@ -46986,7 +47231,7 @@ ${dirty.trim()}`);
     }
     await this.emitAction(task.id, "rollback", "started", `Rolling back with snapshot: ${snapshot.label}.`, snapshot.patchPath);
     try {
-      const patchText = await readFile3(snapshot.patchPath, "utf8");
+      const patchText = await readFile4(snapshot.patchPath, "utf8");
       if (!patchText.trim()) {
         throw new Error("Snapshot is empty; nothing to roll back.");
       }
@@ -47064,9 +47309,9 @@ ${dirty.trim()}`);
         task,
         worktreePath
       });
-      const reportDir = join3(homedir3(), ".agent-workbench", "reports", sanitizePathSegment(project.name));
+      const reportDir = join4(homedir4(), ".agent-workbench", "reports", sanitizePathSegment(project.name));
       await mkdir2(reportDir, { recursive: true });
-      const reportPath = join3(reportDir, `${sanitizePathSegment(task.title)}-${task.id.slice(0, 8)}.md`);
+      const reportPath = join4(reportDir, `${sanitizePathSegment(task.title)}-${task.id.slice(0, 8)}.md`);
       await writeFile2(reportPath, report.markdown, "utf8");
       await this.emitAction(task.id, "export_report", "completed", "Session report exported.", reportPath, {
         reportPath,
@@ -47085,7 +47330,7 @@ ${dirty.trim()}`);
   }
   async sessionTerminalContext(taskId) {
     const { project, task, worktreePath } = await this.requireSession(taskId);
-    const linkedTask = await this.reconcileGeminiSessionLink(task);
+    const linkedTask = await this.reconcileNativeSessionLink(task);
     if (isNativeGeminiCliSession(linkedTask) && linkedTask.agentSessionOrigin === "imported") {
       try {
         await bridgeGeminiSessionToWorktree(project.path, worktreePath, linkedTask.agentSessionId);
@@ -47102,8 +47347,8 @@ ${dirty.trim()}`);
     const resolved = resolveSessionFilePath(worktreePath, filePath);
     try {
       const [buffer, metadata] = await Promise.all([
-        readFile3(resolved.absolutePath),
-        stat(resolved.absolutePath)
+        readFile4(resolved.absolutePath),
+        stat2(resolved.absolutePath)
       ]);
       const mimeType = fileMimeType(resolved.relativePath);
       const kind = sessionFileKind(resolved.relativePath, buffer, mimeType);
@@ -47128,8 +47373,8 @@ ${dirty.trim()}`);
     const resolved = resolveSessionFilePath(worktreePath, filePath);
     try {
       const [buffer, metadata] = await Promise.all([
-        readFile3(resolved.absolutePath),
-        stat(resolved.absolutePath)
+        readFile4(resolved.absolutePath),
+        stat2(resolved.absolutePath)
       ]);
       const mimeType = fileMimeType(resolved.relativePath);
       return {
@@ -47158,7 +47403,7 @@ ${dirty.trim()}`);
     await writeFile2(resolved.absolutePath, input.content, "utf8");
     await this.updateTask({ ...task });
     await this.captureDiff(task);
-    const metadata = await stat(resolved.absolutePath);
+    const metadata = await stat2(resolved.absolutePath);
     return {
       content: input.content,
       encoding: "utf8",
@@ -47183,10 +47428,10 @@ ${dirty.trim()}`);
     if (buffer.byteLength > MAX_SESSION_IMAGE_UPLOAD_BYTES) {
       throw new Error(`Uploaded image is too large. Limit is ${formatBytes(MAX_SESSION_IMAGE_UPLOAD_BYTES)}.`);
     }
-    const uploadDir = join3(homedir3(), ".agent-workbench", "uploads", sanitizePathSegment(project.name || project.id), task.id);
+    const uploadDir = join4(homedir4(), ".agent-workbench", "uploads", sanitizePathSegment(project.name || project.id), task.id);
     await mkdir2(uploadDir, { recursive: true });
     const fileName = `clipboard-${(/* @__PURE__ */ new Date()).toISOString().replaceAll(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}.${imageExtensionForMimeType(mimeType)}`;
-    const absolutePath = join3(uploadDir, fileName);
+    const absolutePath = join4(uploadDir, fileName);
     await writeFile2(absolutePath, buffer);
     await this.emitAction(taskId, "context", "completed", "Screenshot uploaded.", absolutePath, {
       fileName: input.fileName,
@@ -47306,6 +47551,38 @@ ${dirty.trim()}`);
       {
         agentSessionId: sessionId,
         kind: "codex-session-link",
+        source: "terminal-output"
+      }
+    );
+  }
+  async recordTerminalClaudeSession(taskId, sessionId) {
+    const task = await this.options.store.getTask(taskId);
+    if (!task || !isClaudeBackendId(task.backendId)) {
+      return;
+    }
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli") {
+      return;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
+      return;
+    }
+    await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: sessionId,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume"
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Captured Claude Code resume session.",
+      `Claude Code reported resumable session ${sessionId}.`,
+      {
+        agentSessionId: sessionId,
+        kind: "claude-session-link",
         source: "terminal-output"
       }
     );
@@ -47434,12 +47711,56 @@ ${dirty.trim()}`);
     );
     return updated;
   }
+  async reconcileClaudeSessionLink(task) {
+    if (!isClaudeBackendId(task.backendId) || !task.worktreePath) {
+      return task;
+    }
+    let nativeSession;
+    try {
+      nativeSession = task.agentSessionId ? await findClaudeProjectSession(task.worktreePath, task.agentSessionId) : await findLatestClaudeProjectSession(task.worktreePath, task.createdAt);
+    } catch {
+      return task;
+    }
+    if (!nativeSession) {
+      return task;
+    }
+    if (task.agentSessionId === nativeSession.id && task.agentSessionKind === "native-cli" && task.agentSessionResumeMode === "resume") {
+      return task;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== nativeSession.id) {
+      return task;
+    }
+    const updated = await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: nativeSession.id,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume"
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Linked native Claude Code session.",
+      `Claude Code session ${nativeSession.id} is now bound to this Workbench session.`,
+      {
+        agentSessionId: nativeSession.id,
+        kind: "claude-session-link",
+        source: "claude-jsonl-scan"
+      }
+    );
+    return updated;
+  }
   async reconcileNativeSessionLink(task, options = {}) {
     if (isGeminiBackendId(task.backendId)) {
       return this.reconcileGeminiSessionLink(task, options);
     }
     if (isCodexBackendId(task.backendId)) {
       return this.reconcileCodexSessionLink(task);
+    }
+    if (isClaudeBackendId(task.backendId)) {
+      return this.reconcileClaudeSessionLink(task);
     }
     return task;
   }
@@ -47777,7 +48098,7 @@ ${files.map((file2) => file2.path).join("\n")}`;
     }
     const target = globalMemoryPath();
     await mkdir2(dirname(target), { recursive: true });
-    const existing = await readFile3(target, "utf8").catch(() => "");
+    const existing = await readFile4(target, "utf8").catch(() => "");
     const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
     await appendFile(target, `${prefix}${text}
 `, "utf8");
@@ -47799,8 +48120,8 @@ ${text}`;
   }
   async nativeExtensionsList(worktreePath) {
     const extensions = await listNamedDirectories([
-      { label: "global", path: join3(homedir3(), ".gemini", "extensions") },
-      { label: "project", path: join3(worktreePath, ".gemini", "extensions") }
+      { label: "global", path: join4(homedir4(), ".gemini", "extensions") },
+      { label: "project", path: join4(worktreePath, ".gemini", "extensions") }
     ]);
     if (extensions.length === 0) {
       return "No Gemini extensions found in ~/.gemini/extensions or .gemini/extensions.";
@@ -47926,9 +48247,9 @@ ${worktreeStatus.trim()}` : "Worktree is clean."
     return this.options.git.patch(worktreePath);
   }
   async writePatchFile(project, task, patchText) {
-    const patchDir = join3(homedir3(), ".agent-workbench", "patches", sanitizePathSegment(project.name));
+    const patchDir = join4(homedir4(), ".agent-workbench", "patches", sanitizePathSegment(project.name));
     await mkdir2(patchDir, { recursive: true });
-    const patchPath = join3(patchDir, `${sanitizePathSegment(task.title)}-${task.id.slice(0, 8)}.patch`);
+    const patchPath = join4(patchDir, `${sanitizePathSegment(task.title)}-${task.id.slice(0, 8)}.patch`);
     await writeFile2(patchPath, patchText, "utf8");
     return patchPath;
   }
@@ -48102,12 +48423,12 @@ function parseNativeSlashCommand(prompt) {
   return void 0;
 }
 function globalMemoryPath() {
-  return join3(homedir3(), ".gemini", "GEMINI.md");
+  return join4(homedir4(), ".gemini", "GEMINI.md");
 }
 async function readMemoryFiles(worktreePath) {
   return readExistingTextFiles([
     globalMemoryPath(),
-    join3(worktreePath, "GEMINI.md")
+    join4(worktreePath, "GEMINI.md")
   ]);
 }
 async function readExistingTextFiles(paths) {
@@ -48121,7 +48442,7 @@ async function readExistingTextFiles(paths) {
   });
   const files = await Promise.all(
     uniquePaths.map(async (path) => {
-      const content = await readFile3(path, "utf8").catch(() => void 0);
+      const content = await readFile4(path, "utf8").catch(() => void 0);
       return content === void 0 ? void 0 : { content, path };
     })
   );
@@ -48130,11 +48451,11 @@ async function readExistingTextFiles(paths) {
 async function listNamedDirectories(roots) {
   const entries = await Promise.all(
     roots.map(async (root) => {
-      const dirents = await readdir3(root.path, { withFileTypes: true }).catch(() => []);
+      const dirents = await readdir4(root.path, { withFileTypes: true }).catch(() => []);
       return dirents.filter((dirent) => dirent.isDirectory()).map((dirent) => ({
         label: root.label,
         name: dirent.name,
-        path: join3(root.path, dirent.name)
+        path: join4(root.path, dirent.name)
       }));
     })
   );
@@ -48142,15 +48463,15 @@ async function listNamedDirectories(roots) {
 }
 async function listSkills(worktreePath) {
   const candidates = await listNamedDirectories([
-    { label: "global gemini", path: join3(homedir3(), ".gemini", "skills") },
-    { label: "global agents", path: join3(homedir3(), ".agents", "skills") },
-    { label: "project gemini", path: join3(worktreePath, ".gemini", "skills") },
-    { label: "project agents", path: join3(worktreePath, ".agents", "skills") }
+    { label: "global gemini", path: join4(homedir4(), ".gemini", "skills") },
+    { label: "global agents", path: join4(homedir4(), ".agents", "skills") },
+    { label: "project gemini", path: join4(worktreePath, ".gemini", "skills") },
+    { label: "project agents", path: join4(worktreePath, ".agents", "skills") }
   ]);
   const skills = await Promise.all(
     candidates.map(async (candidate) => {
-      const skillFile = join3(candidate.path, "SKILL.md");
-      const content = await readFile3(skillFile, "utf8").catch(() => void 0);
+      const skillFile = join4(candidate.path, "SKILL.md");
+      const content = await readFile4(skillFile, "utf8").catch(() => void 0);
       if (content === void 0) {
         return void 0;
       }
@@ -48230,9 +48551,9 @@ var SESSION_TREE_IGNORED_DIRS = /* @__PURE__ */ new Set([
 ]);
 async function listSessionTreeEntries(worktreePath) {
   const entries = [];
-  async function walk(relativeDir) {
-    const directoryPath = relativeDir ? join3(worktreePath, relativeDir) : worktreePath;
-    const dirents = await readdir3(directoryPath, { withFileTypes: true });
+  async function walk2(relativeDir) {
+    const directoryPath = relativeDir ? join4(worktreePath, relativeDir) : worktreePath;
+    const dirents = await readdir4(directoryPath, { withFileTypes: true });
     dirents.sort((left, right) => {
       if (left.isDirectory() !== right.isDirectory()) {
         return left.isDirectory() ? -1 : 1;
@@ -48240,7 +48561,7 @@ async function listSessionTreeEntries(worktreePath) {
       return left.name.localeCompare(right.name);
     });
     for (const dirent of dirents) {
-      const nextRelativePath = relativeDir ? join3(relativeDir, dirent.name) : dirent.name;
+      const nextRelativePath = relativeDir ? join4(relativeDir, dirent.name) : dirent.name;
       const normalizedPath = nextRelativePath.split(sep).join("/");
       if (dirent.isDirectory()) {
         if (SESSION_TREE_IGNORED_DIRS.has(dirent.name)) {
@@ -48250,7 +48571,7 @@ async function listSessionTreeEntries(worktreePath) {
           kind: "directory",
           path: normalizedPath
         });
-        await walk(nextRelativePath);
+        await walk2(nextRelativePath);
         continue;
       }
       if (!dirent.isFile()) {
@@ -48262,7 +48583,7 @@ async function listSessionTreeEntries(worktreePath) {
       });
     }
   }
-  await walk("");
+  await walk2("");
   return entries;
 }
 function resolveSessionFilePath(worktreePath, filePath) {
@@ -48671,8 +48992,20 @@ function isGeminiBackendId(backendId) {
 function isCodexBackendId(backendId) {
   return backendId === "codex";
 }
+function isClaudeBackendId(backendId) {
+  return backendId === "claude";
+}
 function isNativeCliBackendId(backendId) {
-  return isGeminiBackendId(backendId) || isCodexBackendId(backendId);
+  return isGeminiBackendId(backendId) || isCodexBackendId(backendId) || isClaudeBackendId(backendId);
+}
+function nativeCliBackendName(backendId) {
+  if (backendId === "gemini-acp") {
+    return "Gemini CLI";
+  }
+  if (backendId === "codex") {
+    return "OpenAI Codex";
+  }
+  return "Claude Code";
 }
 function isNativeGeminiCliSession(task) {
   return Boolean(
@@ -49296,9 +49629,9 @@ function extractToken(input) {
 }
 
 // packages/core/src/storage/localStore.ts
-import { copyFile as copyFile2, mkdir as mkdir3, readFile as readFile4, rename, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname2, join as join4 } from "node:path";
-import { homedir as homedir4 } from "node:os";
+import { copyFile as copyFile2, mkdir as mkdir3, readFile as readFile5, rename, stat as stat3, writeFile as writeFile3 } from "node:fs/promises";
+import { dirname as dirname2, join as join5 } from "node:path";
+import { homedir as homedir5 } from "node:os";
 function emptyStore() {
   return {
     projects: [],
@@ -49310,7 +49643,7 @@ function emptyStore() {
   };
 }
 function defaultStorePath() {
-  return join4(homedir4(), ".agent-workbench", "store.json");
+  return join5(homedir5(), ".agent-workbench", "store.json");
 }
 var LocalStore = class {
   constructor(path = defaultStorePath()) {
@@ -49325,7 +49658,7 @@ var LocalStore = class {
   async init() {
     await mkdir3(dirname2(this.path), { recursive: true });
     try {
-      const raw = await readFile4(this.path, "utf8");
+      const raw = await readFile5(this.path, "utf8");
       parseStore(raw);
       await this.ensureBackupIfMissing();
     } catch (error48) {
@@ -49436,7 +49769,7 @@ var LocalStore = class {
   }
   async read() {
     await this.initIfNeeded();
-    const raw = await readFile4(this.path, "utf8");
+    const raw = await readFile5(this.path, "utf8");
     try {
       const parsed = parseStore(raw);
       if (parsed.recovered) {
@@ -49466,7 +49799,7 @@ var LocalStore = class {
   }
   async readBackup() {
     try {
-      const raw = await readFile4(this.backupPath, "utf8");
+      const raw = await readFile5(this.backupPath, "utf8");
       return parseStore(raw).data;
     } catch {
       return void 0;
@@ -49481,7 +49814,7 @@ var LocalStore = class {
   }
   async initIfNeeded() {
     try {
-      await readFile4(this.path, "utf8");
+      await readFile5(this.path, "utf8");
     } catch {
       await this.init();
     }
@@ -49534,7 +49867,7 @@ function normalizeStore(data) {
 }
 async function fileStats(path) {
   try {
-    const value = await stat2(path);
+    const value = await stat3(path);
     return {
       exists: true,
       sizeBytes: value.size
@@ -49589,19 +49922,204 @@ function createWorkbenchStore(path) {
 // apps/server/src/index.ts
 var import_fastify = __toESM(require_fastify(), 1);
 var import_websocket = __toESM(require_websocket2(), 1);
-import { spawn as spawn6 } from "node:child_process";
+import { spawn as spawn7 } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { access, readFile as readFile5, readdir as readdir4 } from "node:fs/promises";
-import { homedir as homedir6, networkInterfaces } from "node:os";
-import { dirname as dirname4, extname as extname2, join as join6, resolve as resolve4 } from "node:path";
+import { access as access2, readFile as readFile6, readdir as readdir5 } from "node:fs/promises";
+import { homedir as homedir7, networkInterfaces } from "node:os";
+import { dirname as dirname4, extname as extname2, join as join7, resolve as resolve4 } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as pty from "node-pty";
 
-// packages/adapters/src/codex/codexTerminalBackend.ts
+// packages/adapters/src/claude/claudeTerminalBackend.ts
 import { spawn as spawn2 } from "node:child_process";
 async function commandResult(command, args) {
   return new Promise((resolve5) => {
     const child = spawn2(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", (error48) => {
+      resolve5({ exitCode: 1, stdout, stderr: error48.message });
+    });
+    child.on("close", (exitCode) => {
+      resolve5({ exitCode: exitCode ?? 1, stdout, stderr });
+    });
+  });
+}
+var ClaudeTerminalBackend = class {
+  constructor(command = process.env.CLAUDE_CODE_COMMAND ?? "claude") {
+    this.command = command;
+  }
+  command;
+  id = "claude";
+  name = "Claude Code";
+  async detect() {
+    const result = await commandResult(this.command, ["--version"]);
+    const output = `${result.stdout}${result.stderr}`.trim();
+    return {
+      id: this.id,
+      name: this.name,
+      kind: "claude",
+      available: result.exitCode === 0,
+      command: this.command,
+      version: result.exitCode === 0 ? output : void 0,
+      details: result.exitCode === 0 ? "Claude Code command detected. Workbench uses native terminal mode." : output || "Claude Code command not found.",
+      capabilities: ["terminal", "resume", "cancel", "worktree"],
+      profile: claudeTerminalProfile()
+    };
+  }
+  async startTask(input) {
+    await emitClaudeTerminalNotice(input.task.id, input.emit, input.task.agentSessionId);
+  }
+  async startSession(input) {
+    await emitClaudeTerminalNotice(input.task.id, input.emit, input.task.agentSessionId);
+  }
+  async sendMessage(input) {
+    await input.emit({
+      type: "session.action",
+      action: "terminal",
+      status: "completed",
+      taskId: input.task.id,
+      title: "Use the native Claude Code terminal.",
+      details: "Claude Code is attached through the right-side native terminal so slash commands, plugins, skills, permissions, and resume behavior stay inside Claude Code.",
+      data: {
+        kind: "terminal"
+      },
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+};
+async function emitClaudeTerminalNotice(taskId, emit, sessionId) {
+  await emit({
+    type: "session.action",
+    action: "terminal",
+    status: "started",
+    taskId,
+    title: "Claude Code terminal session ready.",
+    details: sessionId ? `Attach the right-side terminal to start Claude Code with fixed session id ${sessionId}. Future attaches use claude --resume.` : "Attach the right-side terminal to start Claude Code in this isolated worktree.",
+    data: {
+      kind: "terminal",
+      command: "claude",
+      agentSessionId: sessionId
+    },
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  });
+}
+function claudeTerminalProfile() {
+  return {
+    summary: "Native Claude Code backend. It preserves Claude Code's full terminal experience while Workbench manages isolated worktrees, review, snapshots, and delivery.",
+    features: [
+      {
+        id: "chat",
+        label: "Chat turns",
+        support: "supported",
+        source: "terminal",
+        description: "The embedded terminal runs Claude Code directly."
+      },
+      {
+        id: "persistent_session",
+        label: "Persistent session",
+        support: "supported",
+        source: "terminal",
+        description: "Workbench creates a stable Claude session id up front and reattaches with claude --resume."
+      },
+      {
+        id: "slash_commands",
+        label: "Slash commands",
+        support: "supported",
+        source: "terminal",
+        description: "Claude Code slash commands stay native inside the terminal."
+      },
+      {
+        id: "command_execution",
+        label: "Command execution",
+        support: "supported",
+        source: "terminal",
+        description: "Claude Code executes commands through its own permission flow."
+      },
+      {
+        id: "skills",
+        label: "Skills and plugins",
+        support: "supported",
+        source: "terminal",
+        description: "Claude Code skills, plugins, hooks, and agents work through the CLI."
+      },
+      {
+        id: "approvals",
+        label: "Approvals",
+        support: "partial",
+        source: "terminal",
+        description: "Approvals remain in Claude Code.",
+        limitation: "Workbench does not yet mirror Claude Code permissions into its approval panel."
+      },
+      {
+        id: "terminal_fallback",
+        label: "Native terminal",
+        support: "supported",
+        source: "terminal",
+        description: "The right-side terminal is the primary Claude Code interface."
+      },
+      {
+        id: "worktree_isolation",
+        label: "Worktree isolation",
+        support: "supported",
+        source: "workbench",
+        description: "Claude Code runs inside the session isolated worktree."
+      },
+      {
+        id: "diff_review",
+        label: "Diff review",
+        support: "supported",
+        source: "workbench",
+        description: "Workbench reviews changes made by Claude Code in the isolated worktree."
+      }
+    ],
+    commands: [
+      {
+        name: "claude --session-id <id>",
+        source: "terminal",
+        support: "supported",
+        description: "Starts Claude Code using Workbench's fixed native session id."
+      },
+      {
+        name: "claude --resume <id>",
+        source: "terminal",
+        support: "supported",
+        description: "Reopens the linked native Claude Code session."
+      }
+    ],
+    skills: [
+      {
+        name: "Claude Code skills and plugins",
+        source: "terminal",
+        support: "supported",
+        description: "Claude Code manages its own skills, plugins, hooks, and agents inside the terminal session."
+      }
+    ],
+    recommendedUse: [
+      "Running Claude Code, Codex, and Gemini sessions side by side across the same projects.",
+      "Using Claude Code's native CLI while keeping Workbench diff, snapshot, apply, and delivery controls."
+    ],
+    limitations: [
+      "Workbench does not yet parse Claude Code structured transcript events into first-class Workbench events.",
+      "Claude Code approvals remain inside the terminal.",
+      "Claude Code must be installed and authenticated separately."
+    ]
+  };
+}
+
+// packages/adapters/src/codex/codexTerminalBackend.ts
+import { spawn as spawn3 } from "node:child_process";
+async function commandResult2(command, args) {
+  return new Promise((resolve5) => {
+    const child = spawn3(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -49628,7 +50146,7 @@ var CodexTerminalBackend = class {
   id = "codex";
   name = "Codex CLI";
   async detect() {
-    const result = await commandResult(this.command, ["--version"]);
+    const result = await commandResult2(this.command, ["--version"]);
     const output = `${result.stdout}${result.stderr}`.trim();
     return {
       id: this.id,
@@ -49783,11 +50301,11 @@ function codexTerminalProfile() {
 }
 
 // packages/adapters/src/gemini/geminiAcpBackend.ts
-import { spawn as spawn3 } from "node:child_process";
+import { spawn as spawn4 } from "node:child_process";
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { mkdir as mkdir4, writeFile as writeFile4 } from "node:fs/promises";
-import { homedir as homedir5, tmpdir } from "node:os";
-import { dirname as dirname3, join as join5 } from "node:path";
+import { homedir as homedir6, tmpdir } from "node:os";
+import { dirname as dirname3, join as join6 } from "node:path";
 import { Readable, Writable } from "node:stream";
 
 // node_modules/zod/v4/classic/external.js
@@ -65096,9 +65614,9 @@ var RequestError = class _RequestError extends Error {
 };
 
 // packages/adapters/src/gemini/geminiAcpBackend.ts
-async function commandResult2(command, args) {
+async function commandResult3(command, args) {
   return new Promise((resolve5) => {
-    const child = spawn3(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn4(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -65175,8 +65693,8 @@ async function writeGeminiAcpSystemSettings() {
   const configuredPath = process.env.AGENT_WORKBENCH_GEMINI_SYSTEM_SETTINGS_PATH;
   const candidatePaths = [
     configuredPath,
-    join5(homedir5(), ".agent-workbench", "gemini-acp-system-settings.json"),
-    join5(tmpdir(), "agent-workbench-gemini-acp-system-settings.json")
+    join6(homedir6(), ".agent-workbench", "gemini-acp-system-settings.json"),
+    join6(tmpdir(), "agent-workbench-gemini-acp-system-settings.json")
   ].filter((path) => Boolean(path));
   let lastError;
   for (const settingsPath of candidatePaths) {
@@ -65200,7 +65718,7 @@ var GeminiAcpBackend = class {
   approvals = /* @__PURE__ */ new Map();
   sessions = /* @__PURE__ */ new Map();
   async detect() {
-    const result = await commandResult2(this.command, ["--version"]);
+    const result = await commandResult3(this.command, ["--version"]);
     const output = `${result.stdout}${result.stderr}`.trim();
     return {
       id: this.id,
@@ -65254,7 +65772,7 @@ var GeminiAcpBackend = class {
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
     const env = await geminiAcpEnvironment();
-    const child = spawn3(this.command, ["--acp"], {
+    const child = spawn4(this.command, ["--acp"], {
       cwd: input.worktreePath,
       env,
       stdio: ["pipe", "pipe", "pipe"]
@@ -65913,10 +66431,10 @@ function approvalRisk(kind) {
 }
 
 // packages/adapters/src/gemini/geminiBackend.ts
-import { spawn as spawn4 } from "node:child_process";
-async function commandResult3(command, args) {
+import { spawn as spawn5 } from "node:child_process";
+async function commandResult4(command, args) {
   return new Promise((resolve5) => {
-    const child = spawn4(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn5(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -65944,7 +66462,7 @@ var GeminiBackend = class {
   name = "Gemini CLI";
   processes = /* @__PURE__ */ new Map();
   async detect() {
-    const result = await commandResult3(this.command, ["--version"]);
+    const result = await commandResult4(this.command, ["--version"]);
     const output = `${result.stdout}${result.stderr}`.trim();
     return {
       id: this.id,
@@ -66003,7 +66521,7 @@ var GeminiBackend = class {
       },
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
-    const child = spawn4(this.command, args, {
+    const child = spawn5(this.command, args, {
       cwd: input.worktreePath,
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"]
@@ -66314,7 +66832,7 @@ function errorMessage(error48) {
 }
 
 // packages/adapters/src/pty/genericPtyBackend.ts
-import { spawn as spawn5 } from "node:child_process";
+import { spawn as spawn6 } from "node:child_process";
 var GenericPtyBackend = class {
   id = "generic-pty";
   name = "Generic CLI Fallback";
@@ -66332,7 +66850,7 @@ var GenericPtyBackend = class {
   }
   async startTask(input) {
     const command = process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash";
-    const child = spawn5(command, [], {
+    const child = spawn6(command, [], {
       cwd: input.worktreePath,
       env: process.env,
       stdio: ["pipe", "pipe", "pipe"]
@@ -66505,14 +67023,14 @@ async function createWorkbenchServer(options = {}) {
   const port = options.port ?? numberFromEnv2("AGENT_WORKBENCH_PORT", 3030);
   const token = options.token ?? process.env.AGENT_WORKBENCH_TOKEN ?? createLocalToken();
   const storePath = options.storePath ?? process.env.AGENT_WORKBENCH_STORE_PATH;
-  const worktreeRoot = options.worktreeRoot ?? process.env.AGENT_WORKBENCH_WORKTREE_ROOT ?? join6(homedir6(), ".agent-workbench", "worktrees");
+  const worktreeRoot = options.worktreeRoot ?? process.env.AGENT_WORKBENCH_WORKTREE_ROOT ?? join7(homedir7(), ".agent-workbench", "worktrees");
   const eventBus = new EventBus();
   const store = createWorkbenchStore(storePath);
   const orchestrator = new WorkbenchOrchestrator({
     store,
     git: new GitClient(),
     eventBus,
-    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new GenericPtyBackend()],
+    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new ClaudeTerminalBackend(), new GenericPtyBackend()],
     worktreeRoot
   });
   await orchestrator.init();
@@ -66563,6 +67081,12 @@ async function createWorkbenchServer(options = {}) {
         label: "Codex CLI terminal"
       },
       {
+        command: process.env.CLAUDE_CODE_COMMAND ?? "claude",
+        envVar: "CLAUDE_CODE_COMMAND",
+        id: "claude",
+        label: "Claude Code terminal"
+      },
+      {
         command: process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash",
         envVar: "AGENT_WORKBENCH_FALLBACK_COMMAND",
         id: "generic-pty",
@@ -66587,16 +67111,17 @@ async function createWorkbenchServer(options = {}) {
     }
   }));
   app.get("/api/system/doctor", async () => {
-    const [node, git, gemini, codex, storage] = await Promise.all([
+    const [node, git, gemini, codex, claude, storage] = await Promise.all([
       checkCommand("node", ["-v"]),
       checkCommand("git", ["--version"]),
       checkCommand(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
       checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
+      checkCommand(process.env.CLAUDE_CODE_COMMAND ?? "claude", ["--version"]),
       store.health()
     ]);
     const usesJsonStore = extname2(storage.path).toLowerCase() === ".json";
     return {
-      checks: [node, git, gemini, codex],
+      checks: [node, git, gemini, codex, claude],
       host,
       port,
       storage: {
@@ -66609,14 +67134,15 @@ async function createWorkbenchServer(options = {}) {
         host === "0.0.0.0" ? "Server is listening on all interfaces. Keep the token private and prefer SSH port forwarding." : void 0,
         usesJsonStore && !storage.backupExists ? "JSON storage backup has not been created yet." : void 0,
         gemini.ok ? void 0 : "Gemini CLI is not available; structured Gemini ACP sessions will not work until it is installed and authenticated.",
-        codex.ok ? void 0 : "Codex CLI is not available; Codex terminal sessions will not work until it is installed and authenticated."
+        codex.ok ? void 0 : "Codex CLI is not available; Codex terminal sessions will not work until it is installed and authenticated.",
+        claude.ok ? void 0 : "Claude Code is not available; Claude terminal sessions will not work until it is installed and authenticated."
       ].filter((warning) => Boolean(warning))
     };
   });
   app.get("/", async (request, reply) => {
     const indexPath = await findWebAsset("index.html");
     if (indexPath) {
-      return reply.type("text/html").send(await readFile5(indexPath, "utf8"));
+      return reply.type("text/html").send(await readFile6(indexPath, "utf8"));
     }
     const webHost = process.env.AGENT_WORKBENCH_WEB_PUBLIC_HOST ?? request.hostname.split(":")[0] ?? "127.0.0.1";
     const webPort = numberFromEnv2("AGENT_WORKBENCH_WEB_PORT", 5173);
@@ -66641,7 +67167,7 @@ async function createWorkbenchServer(options = {}) {
   });
   app.get("/assets/*", async (request, reply) => {
     const params = request.params;
-    const assetPath = await findWebAsset(join6("assets", params["*"]));
+    const assetPath = await findWebAsset(join7("assets", params["*"]));
     if (!assetPath) {
       return reply.code(404).send({ error: "Asset not found." });
     }
@@ -66684,6 +67210,11 @@ async function createWorkbenchServer(options = {}) {
     const params = request.params;
     return orchestrator.listProjectGeminiSessions(params.id);
   });
+  app.get("/api/projects/:id/native-sessions", async (request) => {
+    const params = request.params;
+    const query = request.query;
+    return orchestrator.listProjectNativeSessions(params.id, query.backendId);
+  });
   app.post("/api/projects/:id/gemini-sessions/import", async (request) => {
     const params = request.params;
     const body = request.body ?? {};
@@ -66691,6 +67222,17 @@ async function createWorkbenchServer(options = {}) {
       throw new Error("Missing required field: sessionId");
     }
     return orchestrator.importGeminiSession(params.id, body.sessionId, body.modeId);
+  });
+  app.post("/api/projects/:id/native-sessions/import", async (request) => {
+    const params = request.params;
+    const body = request.body ?? {};
+    if (!body.backendId || typeof body.backendId !== "string") {
+      throw new Error("Missing required field: backendId");
+    }
+    if (!body.sessionId || typeof body.sessionId !== "string") {
+      throw new Error("Missing required field: sessionId");
+    }
+    return orchestrator.importNativeCliSession(params.id, body.backendId, body.sessionId, body.modeId);
   });
   app.get("/api/tasks", async () => orchestrator.listTasks());
   app.get("/api/sessions", async () => orchestrator.listTasks());
@@ -67350,6 +67892,10 @@ cwd: ${cwd}\r
       this.captureCodexSessionFromTerminal(taskId, handle);
       return;
     }
+    if (handle.task.backendId === "claude") {
+      this.captureClaudeSessionFromTerminal(taskId, handle);
+      return;
+    }
     this.captureGeminiSessionFromTerminal(taskId, handle);
   }
   captureGeminiSessionFromTerminal(taskId, handle) {
@@ -67367,6 +67913,14 @@ cwd: ${cwd}\r
     }
     handle.reportedCodexSessionId = sessionId;
     void this.orchestrator.recordTerminalCodexSession(taskId, sessionId).catch(() => void 0);
+  }
+  captureClaudeSessionFromTerminal(taskId, handle) {
+    const sessionId = extractClaudeResumeSessionId(handle.buffer.join(""));
+    if (!sessionId || sessionId === handle.reportedClaudeSessionId) {
+      return;
+    }
+    handle.reportedClaudeSessionId = sessionId;
+    void this.orchestrator.recordTerminalClaudeSession(taskId, sessionId).catch(() => void 0);
   }
   broadcast(key, message) {
     const handle = this.sessions.get(key);
@@ -67426,11 +67980,18 @@ cwd: ${cwd}\r
   }
 };
 function normalizeTerminalCommand(command, task, worktreePath) {
-  const requested = command?.trim() || (task?.backendId === "codex" ? "codex" : process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task));
+  const requested = command?.trim() || (task?.backendId === "codex" ? "codex" : task?.backendId === "claude" ? "claude" : process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task));
   if (task?.backendId === "codex" && isCodexTerminalCommand(requested)) {
     const sessionId2 = nativeCodexCliSessionId(task);
     const cd = worktreePath ? ` --cd ${shellQuote(worktreePath)}` : "";
     return sessionId2 ? `codex resume${cd} ${sessionId2}` : `codex${cd}`;
+  }
+  if (task?.backendId === "claude" && isClaudeTerminalCommand(requested)) {
+    const sessionId2 = nativeClaudeCliSessionId(task);
+    if (sessionId2) {
+      return task.agentSessionResumeMode === "resume" ? `claude --resume ${sessionId2}` : `claude --session-id ${sessionId2} --name ${shellQuote(task.title)}`;
+    }
+    return "claude";
   }
   if (!task || task.backendId !== "gemini" && task.backendId !== "gemini-acp") {
     return requested;
@@ -67442,7 +68003,13 @@ function normalizeTerminalCommand(command, task, worktreePath) {
   return sessionId ? `gemini --resume ${sessionId}` : "gemini";
 }
 function defaultTerminalCommand(task) {
-  return task?.backendId === "codex" ? "codex" : "gemini";
+  if (task?.backendId === "codex") {
+    return "codex";
+  }
+  if (task?.backendId === "claude") {
+    return "claude";
+  }
+  return "gemini";
 }
 function terminalKey(taskId, channel) {
   return channel === "agent" ? taskId : `${taskId}:project-shell`;
@@ -67458,7 +68025,7 @@ function terminalWorktreeCommand(command, cwd, label = "isolated worktree") {
   ].join("; ");
 }
 function displaySessionId2(task) {
-  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? task.id;
+  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? nativeClaudeCliSessionId(task) ?? task.id;
 }
 function nativeGeminiCliSessionId(task) {
   return task.agentSessionId && (task.backendId === "gemini" || task.backendId === "gemini-acp") && (task.agentSessionKind === "native-cli" || task.agentSessionKind === void 0 && task.agentSessionOrigin === "imported") ? task.agentSessionId : void 0;
@@ -67466,18 +68033,24 @@ function nativeGeminiCliSessionId(task) {
 function nativeCodexCliSessionId(task) {
   return task.agentSessionId && task.backendId === "codex" && (task.agentSessionKind === "native-cli" || task.agentSessionKind === void 0 && task.agentSessionOrigin === "imported") ? task.agentSessionId : void 0;
 }
+function nativeClaudeCliSessionId(task) {
+  return task.agentSessionId && task.backendId === "claude" && (task.agentSessionKind === "native-cli" || task.agentSessionKind === void 0 && task.agentSessionOrigin === "imported") ? task.agentSessionId : void 0;
+}
 function isGeminiTerminalCommand(command) {
   return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
 }
 function isCodexTerminalCommand(command) {
   return command === "codex" || /^codex\s+(resume|--cd|--no-alt-screen)(?:\s|$)/.test(command);
 }
+function isClaudeTerminalCommand(command) {
+  return command === "claude" || /^claude\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
+}
 function shellQuote(value) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 async function checkCommand(name, args) {
   return new Promise((resolve5) => {
-    const child = spawn6(name, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn7(name, args, { stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -67524,6 +68097,14 @@ function extractCodexResumeSessionId(raw) {
   }
   return void 0;
 }
+function extractClaudeResumeSessionId(raw) {
+  const text = stripTerminalControl(raw);
+  const resumeMatch = text.match(/claude\s+(?:--resume|-r|--session-id)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (resumeMatch?.[1]) {
+    return resumeMatch[1];
+  }
+  return void 0;
+}
 function stripTerminalControl(value) {
   return value.replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "").replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").replace(/\r/g, "\n");
 }
@@ -67542,8 +68123,19 @@ async function requireToken(request, reply, expected) {
     await reply.code(401).send({ error: "Unauthorized." });
   }
 }
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isStandaloneServerEntry()) {
   void startStandaloneServer();
+}
+function isStandaloneServerEntry() {
+  const entry = process.argv[1];
+  if (!entry) {
+    return false;
+  }
+  const modulePath = fileURLToPath(import.meta.url);
+  if (resolve4(entry) !== resolve4(modulePath)) {
+    return false;
+  }
+  return modulePath.replaceAll("\\", "/").endsWith("/apps/server/src/index.ts");
 }
 async function startStandaloneServer() {
   const started = await createWorkbenchServer();
@@ -67570,7 +68162,7 @@ async function findWebAsset(relativePath) {
   ];
   for (const candidate of candidates) {
     try {
-      await access(candidate);
+      await access2(candidate);
       return candidate;
     } catch {
     }
@@ -67578,17 +68170,17 @@ async function findWebAsset(relativePath) {
   return void 0;
 }
 async function browseDirectories(inputPath) {
-  const directoryPath = resolve4(inputPath?.trim() || homedir6());
+  const directoryPath = resolve4(inputPath?.trim() || homedir7());
   let dirents;
   try {
-    dirents = await readdir4(directoryPath, { withFileTypes: true });
+    dirents = await readdir5(directoryPath, { withFileTypes: true });
   } catch (error48) {
     const message = error48 instanceof Error ? error48.message : String(error48);
     throw new Error(`Cannot open directory ${directoryPath}: ${message}`);
   }
   const entries = await Promise.all(
     dirents.filter((dirent) => dirent.isDirectory()).map(async (dirent) => {
-      const path = join6(directoryPath, dirent.name);
+      const path = join7(directoryPath, dirent.name);
       return {
         gitRepository: await isGitRepositoryDirectory(path),
         hidden: dirent.name.startsWith("."),
@@ -67616,7 +68208,7 @@ async function browseDirectories(inputPath) {
 }
 async function isGitRepositoryDirectory(path) {
   try {
-    await access(join6(path, ".git"));
+    await access2(join7(path, ".git"));
     return true;
   } catch {
     return false;
@@ -67748,6 +68340,7 @@ program2.command("doctor").description("Check local prerequisites.").action(asyn
     checkCommand2("git", ["--version"]),
     checkCommand2(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
     checkCommand2(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
+    checkCommand2(process.env.CLAUDE_CODE_COMMAND ?? "claude", ["--version"]),
     checkStore(storePath)
   ]);
   for (const check2 of checks) {
@@ -67763,7 +68356,7 @@ program2.parseAsync(process.argv);
 function packageVersion() {
   let current = dirname5(fileURLToPath2(import.meta.url));
   for (let depth = 0; depth < 8; depth += 1) {
-    const packagePath = join7(current, "package.json");
+    const packagePath = join8(current, "package.json");
     if (existsSync(packagePath)) {
       try {
         const parsed = JSON.parse(readFileSync(packagePath, "utf8"));
@@ -67784,7 +68377,7 @@ function packageVersion() {
 }
 async function checkCommand2(name, args) {
   return new Promise((resolve5) => {
-    const child = spawn8(name, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn9(name, args, { stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -67804,7 +68397,7 @@ async function checkCommand2(name, args) {
 }
 async function checkStore(path) {
   try {
-    const info = await stat3(path);
+    const info = await stat4(path);
     return {
       name: "storage",
       ok: true,

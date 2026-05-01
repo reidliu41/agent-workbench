@@ -4551,6 +4551,17 @@ small {
   text-transform: uppercase;
 }
 
+.confirm-branch-target {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.confirm-branch-target small {
+  color: #a9b1aa;
+  line-height: 1.35;
+}
+
 .queue-list {
   display: grid;
   gap: 8px;

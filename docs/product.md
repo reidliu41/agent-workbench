@@ -18,7 +18,7 @@ ship with add/commit/push/draft PR
 
 ## Primary Users
 
-- Developers using Gemini CLI for coding tasks.
+- Developers using Gemini CLI, Codex CLI, or Claude Code for coding tasks.
 - Developers who run multiple tasks in parallel.
 - Developers working over SSH who want a browser-based control surface.
 - Developers who want to review agent changes before they touch the original repository.
@@ -33,7 +33,7 @@ The core problem is not "how to chat with one model." The core problem is operat
 - multiple projects,
 - multiple sessions per project,
 - isolated worktrees,
-- independent native Gemini sessions,
+- independent native Gemini, Codex, and Claude sessions,
 - active/blocked/review-ready state,
 - changed-file overlap awareness,
 - session search and overview.
@@ -61,17 +61,19 @@ For development work, the value is immediate review:
 - Diffs are shown inline with line numbers and added/removed highlighting.
 - File edits can be saved back to the isolated session worktree.
 
-### Gemini CLI First
+### Native CLI First
 
-The current backend focus is Gemini CLI:
+The current backend focus is native coding CLIs:
 
 - `gemini --acp` structured sessions,
 - native Gemini terminal attach,
-- Gemini session import/resume,
-- Gemini auth/settings reuse,
+- native Codex terminal attach,
+- native Claude Code terminal attach,
+- native Gemini, Codex, and Claude session import/resume,
+- native auth/settings reuse,
 - slash commands available through the native terminal.
 
-Workbench does not try to reimplement every Gemini CLI feature in custom web controls. It keeps native terminal access available and adds review, dashboard, snapshots, and delivery around it.
+Workbench does not try to reimplement every CLI feature in custom web controls. It keeps native terminal access available and adds review, dashboard, snapshots, and delivery around it.
 
 ### Voice And Screenshot Input
 
@@ -90,12 +92,21 @@ This is especially useful when reviewing UI bugs, screenshots, terminal output, 
 The user selects:
 
 - project,
-- working branch,
 - session name,
 - agent backend,
 - mode.
 
-The working branch field can create a new branch or select an existing branch. Workbench switches the original repository to that branch before creating the isolated session.
+New sessions do not switch the original repository branch. Workbench creates an isolated session worktree from the current project state, and the final target branch is chosen later during Apply.
+
+### Import Native CLI Session
+
+The Sessions menu can import existing native CLI sessions:
+
+- Gemini CLI sessions from Gemini's local project session store,
+- Codex CLI sessions from Codex rollout metadata,
+- Claude Code sessions from Claude project JSONL history.
+
+Imported sessions are linked to Workbench sessions and reopen with each CLI's native resume command.
 
 ### Run Agent
 
@@ -103,6 +114,8 @@ The session can use:
 
 - Gemini ACP structured backend,
 - attached native Gemini terminal,
+- attached native Codex terminal,
+- attached native Claude Code terminal,
 - raw terminal fallback for manual work.
 
 ### Review Changes
@@ -123,7 +136,13 @@ The Changes tab shows:
 
 ### Apply
 
-Apply moves changes from the isolated worktree into the original repository's current active branch.
+Apply moves changes from the isolated worktree into a selected original repository branch.
+
+The Apply confirmation lets the user:
+
+- choose an existing branch,
+- type a new branch name,
+- create and switch to that branch before applying.
 
 ### Sync
 
@@ -148,7 +167,7 @@ Current version includes:
 
 - local web app,
 - local token auth,
-- Gemini-first backend,
+- Gemini, Codex, and Claude native terminal workflows,
 - git/worktree based isolation,
 - review/diff/snapshot/delivery workflow.
 
@@ -158,4 +177,4 @@ Current version does not include:
 - cloud hosting,
 - public tunnels,
 - desktop packaging,
-- full Codex/Claude/OpenCode adapters.
+- full structured Codex/Claude/OpenCode event adapters.

@@ -26,6 +26,8 @@ import type {
   ExportSessionReportResponse,
   ExportPatchResponse,
   GeminiProjectSession,
+  NativeCliBackendId,
+  NativeCliProjectSession,
   Project,
   ProjectBranchListResponse,
   ProjectDeliveryResponse,
@@ -53,7 +55,13 @@ import type {
 import { EventBus } from "../events/eventBus.js";
 import { GitClient } from "../git/gitClient.js";
 import {
+  findClaudeProjectSession,
+  findLatestClaudeProjectSession,
+  listClaudeProjectSessions,
+} from "../integrations/claudeSessions.js";
+import {
   findLatestCodexProjectSession,
+  listCodexProjectSessions,
 } from "../integrations/codexSessions.js";
 import {
   bridgeGeminiSessionToWorktree,
@@ -145,7 +153,7 @@ export class WorkbenchOrchestrator {
     const branches = await this.options.git.listBranches(project.path);
     return {
       branches: branches
-        .filter((branch) => branch.checkedOutHere || !branch.name.startsWith("agent-workbench/"))
+        .filter((branch) => !branch.name.startsWith("agent-workbench/"))
         .map((branch) => ({
           active: branch.active,
           checkedOutHere: branch.checkedOutHere,
@@ -358,7 +366,8 @@ export class WorkbenchOrchestrator {
     const worktreeBranch = `agent-workbench/${id}`;
     const worktreePath = join(this.worktreeRoot, project.name, id);
 
-    await this.options.git.createWorktree(project.path, worktreePath, worktreeBranch, input.baseBranch ?? project.defaultBranch);
+    const baseBranch = input.baseBranch ?? (await this.options.git.currentBranch(project.path).catch(() => project.defaultBranch));
+    await this.options.git.createWorktree(project.path, worktreePath, worktreeBranch, baseBranch ?? project.defaultBranch);
 
     let task: Task = {
       id,
@@ -416,20 +425,19 @@ export class WorkbenchOrchestrator {
     const id = randomUUID();
     const worktreeBranch = `agent-workbench/${id}`;
     const worktreePath = join(this.worktreeRoot, project.name, id);
-    const workingBranch = normalizeBranchName(input.workingBranch);
-    if (workingBranch) {
-      if (!(await this.options.git.branchExists(project.path, workingBranch))) {
-        await this.options.git.createBranch(project.path, workingBranch);
-      }
-      await this.options.git.switchBranch(project.path, workingBranch);
-    }
-    const baseBranch = workingBranch || input.baseBranch || project.defaultBranch;
+    const baseBranch =
+      normalizeBranchName(input.workingBranch) ||
+      input.baseBranch ||
+      (await this.options.git.currentBranch(project.path).catch(() => project.defaultBranch)) ||
+      project.defaultBranch;
 
     await this.options.git.createWorktree(project.path, worktreePath, worktreeBranch, baseBranch);
 
     if (input.agentSessionId && isGeminiBackendId(backendId)) {
       await bridgeGeminiSessionToWorktree(project.path, worktreePath, input.agentSessionId);
     }
+
+    const nativeAgentSessionId = isClaudeBackendId(backendId) ? (input.agentSessionId ?? randomUUID()) : input.agentSessionId;
 
     let task: Task = {
       id,
@@ -438,9 +446,10 @@ export class WorkbenchOrchestrator {
       title: input.title?.trim() || "New session",
       prompt: "",
       status: "starting",
-      agentSessionId: input.agentSessionId,
-      agentSessionKind: input.agentSessionId && isNativeCliBackendId(backendId) ? "native-cli" : undefined,
+      agentSessionId: nativeAgentSessionId,
+      agentSessionKind: nativeAgentSessionId && isNativeCliBackendId(backendId) ? "native-cli" : undefined,
       agentSessionOrigin: isNativeCliBackendId(backendId) ? (input.agentSessionId ? "imported" : "new") : undefined,
+      agentSessionResumeMode: input.agentSessionId && isNativeCliBackendId(backendId) ? "resume" : undefined,
       baseBranch,
       modeId: input.modeId,
       worktreePath,
@@ -485,6 +494,77 @@ export class WorkbenchOrchestrator {
       modeId,
       projectId,
       title: nativeSession.displayName || nativeSession.firstUserMessage || "Imported Gemini session",
+    });
+  }
+
+  async listProjectNativeSessions(projectId: string, backendId?: NativeCliBackendId): Promise<NativeCliProjectSession[]> {
+    const project = (await this.options.store.listProjects()).find((item) => item.id === projectId);
+    if (!project) {
+      throw new Error("Project not found.");
+    }
+    const backendIds: NativeCliBackendId[] = backendId ? [backendId] : ["gemini-acp", "codex", "claude"];
+    const groups = await Promise.all(
+      backendIds.map(async (id) => {
+        if (id === "gemini-acp") {
+          return (await listGeminiProjectSessions(project.path)).map((session): NativeCliProjectSession => ({
+            backendId: "gemini-acp",
+            backendName: "Gemini CLI",
+            displayName: session.displayName,
+            fileName: session.fileName,
+            firstUserMessage: session.firstUserMessage,
+            id: session.id,
+            lastUpdated: session.lastUpdated,
+            messageCount: session.messageCount,
+            startTime: session.startTime,
+            summary: session.summary,
+          }));
+        }
+        if (id === "codex") {
+          return (await listCodexProjectSessions(project.path, true)).map((session): NativeCliProjectSession => ({
+            backendId: "codex",
+            backendName: "OpenAI Codex",
+            displayName: session.displayName,
+            fileName: session.fileName,
+            firstUserMessage: session.firstUserMessage,
+            id: session.id,
+            lastUpdated: session.lastUpdated,
+            messageCount: session.messageCount,
+            startTime: session.startTime,
+          }));
+        }
+        return (await listClaudeProjectSessions(project.path)).map((session): NativeCliProjectSession => ({
+          backendId: "claude",
+          backendName: "Claude Code",
+          displayName: session.firstUserMessage || session.id,
+          fileName: session.fileName,
+          firstUserMessage: session.firstUserMessage,
+          id: session.id,
+          lastUpdated: session.lastUpdated,
+          messageCount: session.messageCount,
+          startTime: session.startTime,
+          summary: session.version,
+        }));
+      }),
+    );
+    return groups.flat().sort((left, right) => Date.parse(right.lastUpdated) - Date.parse(left.lastUpdated));
+  }
+
+  async importNativeCliSession(projectId: string, backendId: NativeCliBackendId, sessionId: string, modeId?: string): Promise<Task> {
+    const project = (await this.options.store.listProjects()).find((item) => item.id === projectId);
+    if (!project) {
+      throw new Error("Project not found.");
+    }
+    const sessions = await this.listProjectNativeSessions(projectId, backendId);
+    const nativeSession = sessions.find((session) => session.id === sessionId);
+    if (!nativeSession) {
+      throw new Error(`${nativeCliBackendName(backendId)} session not found: ${sessionId}`);
+    }
+    return this.createSession({
+      agentSessionId: nativeSession.id,
+      backendId,
+      modeId,
+      projectId,
+      title: nativeSession.displayName || nativeSession.firstUserMessage || `Imported ${nativeSession.backendName} session`,
     });
   }
 
@@ -1037,12 +1117,22 @@ export class WorkbenchOrchestrator {
 
   async applyTarget(taskId: string): Promise<ApplyTargetResponse> {
     const { project, worktreePath } = await this.requireSession(taskId);
-    const [originalBranch, originalHead] = await Promise.all([
+    const [branches, originalBranch, originalHead] = await Promise.all([
+      this.options.git.listBranches(project.path),
       this.options.git.currentBranch(project.path).catch(() => undefined),
       this.options.git.currentCommit(project.path),
     ]);
 
     return {
+      branches: branches
+        .filter((branch) => branch.checkedOutHere || !branch.name.startsWith("agent-workbench/"))
+        .map((branch) => ({
+          active: branch.active,
+          checkedOutHere: branch.checkedOutHere,
+          checkedOutPath: branch.checkedOutPath,
+          name: branch.name,
+          updatedAt: branch.updatedAt,
+        })),
       originalBranch,
       originalHead,
       projectPath: project.path,
@@ -1068,6 +1158,7 @@ export class WorkbenchOrchestrator {
     await this.emitAction(task.id, "apply", "started", "Applying session changes to original repository.");
 
     try {
+      await this.selectApplyTargetBranch(project.path, input);
       await this.assertApplyTarget(project.path, input);
       if (!patchText.trim()) {
         throw new Error("No session changes to apply.");
@@ -1092,11 +1183,13 @@ export class WorkbenchOrchestrator {
       await this.options.git.checkApplyPatch(project.path, patchText);
       await this.createSessionPatchSnapshot(task, project, patchText, "before_apply", "Before apply");
       await this.options.git.applyPatch(project.path, patchText);
+      const targetBranch = await this.options.git.currentBranch(project.path).catch(() => undefined);
       const baseline = await this.options.git.commitAll(worktreePath, `Agent Workbench apply baseline: ${task.title}`);
       const updated = await this.updateTask({ ...task, baseBranch: baseline.commitSha, status: "applied", updatedAt: new Date().toISOString() });
       await this.captureDiff(updated);
       await this.emitAction(task.id, "apply", "completed", "Applied isolated session changes to original repository.", project.path, {
         projectPath: project.path,
+        targetBranch,
         summary,
       });
       return {
@@ -1111,6 +1204,22 @@ export class WorkbenchOrchestrator {
     }
   }
 
+  private async selectApplyTargetBranch(projectPath: string, input: ApplySessionRequest): Promise<void> {
+    const targetBranch = normalizeBranchName(input.targetBranch);
+    if (!targetBranch) {
+      return;
+    }
+    const currentBranch = await this.options.git.currentBranch(projectPath).catch(() => undefined);
+    if (currentBranch === targetBranch) {
+      return;
+    }
+    const exists = await this.options.git.branchExists(projectPath, targetBranch);
+    if (!exists) {
+      await this.options.git.createBranch(projectPath, targetBranch);
+    }
+    await this.options.git.switchBranch(projectPath, targetBranch);
+  }
+
   private async assertApplyTarget(projectPath: string, input: ApplySessionRequest): Promise<void> {
     if (!input.expectedOriginalBranch && !input.expectedOriginalHead) {
       return;
@@ -1120,10 +1229,12 @@ export class WorkbenchOrchestrator {
       this.options.git.currentBranch(projectPath).catch(() => undefined),
       this.options.git.currentCommit(projectPath),
     ]);
-    if (input.expectedOriginalBranch !== undefined && input.expectedOriginalBranch !== currentBranch) {
+    const selectedTargetBranch = normalizeBranchName(input.targetBranch);
+    const intentionallyChangedTarget = selectedTargetBranch && selectedTargetBranch !== input.expectedOriginalBranch;
+    if (!intentionallyChangedTarget && input.expectedOriginalBranch !== undefined && input.expectedOriginalBranch !== currentBranch) {
       throw new Error(`Original repository branch changed from ${input.expectedOriginalBranch || "detached HEAD"} to ${currentBranch || "detached HEAD"}. Reopen Apply and confirm the current target branch.`);
     }
-    if (input.expectedOriginalHead !== undefined && input.expectedOriginalHead !== currentHead) {
+    if (!intentionallyChangedTarget && input.expectedOriginalHead !== undefined && input.expectedOriginalHead !== currentHead) {
       throw new Error(`Original repository HEAD changed from ${input.expectedOriginalHead.slice(0, 12)} to ${currentHead.slice(0, 12)}. Reopen Apply and confirm the current target commit.`);
     }
   }
@@ -1795,7 +1906,7 @@ export class WorkbenchOrchestrator {
 
   async sessionTerminalContext(taskId: string): Promise<{ project: Project; task: Task; worktreePath: string }> {
     const { project, task, worktreePath } = await this.requireSession(taskId);
-    const linkedTask = await this.reconcileGeminiSessionLink(task);
+    const linkedTask = await this.reconcileNativeSessionLink(task);
     if (isNativeGeminiCliSession(linkedTask) && linkedTask.agentSessionOrigin === "imported") {
       try {
         await bridgeGeminiSessionToWorktree(project.path, worktreePath, linkedTask.agentSessionId!);
@@ -2046,6 +2157,40 @@ export class WorkbenchOrchestrator {
     );
   }
 
+  async recordTerminalClaudeSession(taskId: string, sessionId: string): Promise<void> {
+    const task = await this.options.store.getTask(taskId);
+    if (!task || !isClaudeBackendId(task.backendId)) {
+      return;
+    }
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli") {
+      return;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
+      return;
+    }
+
+    await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: sessionId,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume",
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Captured Claude Code resume session.",
+      `Claude Code reported resumable session ${sessionId}.`,
+      {
+        agentSessionId: sessionId,
+        kind: "claude-session-link",
+        source: "terminal-output",
+      },
+    );
+  }
+
   async recordTerminalNativeSessionCandidate(taskId: string): Promise<void> {
     const task = await this.options.store.getTask(taskId);
     if (!task) {
@@ -2184,12 +2329,61 @@ export class WorkbenchOrchestrator {
     return updated;
   }
 
+  private async reconcileClaudeSessionLink(task: Task): Promise<Task> {
+    if (!isClaudeBackendId(task.backendId) || !task.worktreePath) {
+      return task;
+    }
+
+    let nativeSession;
+    try {
+      nativeSession = task.agentSessionId
+        ? await findClaudeProjectSession(task.worktreePath, task.agentSessionId)
+        : await findLatestClaudeProjectSession(task.worktreePath, task.createdAt);
+    } catch {
+      return task;
+    }
+    if (!nativeSession) {
+      return task;
+    }
+    if (task.agentSessionId === nativeSession.id && task.agentSessionKind === "native-cli" && task.agentSessionResumeMode === "resume") {
+      return task;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== nativeSession.id) {
+      return task;
+    }
+
+    const updated = await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: nativeSession.id,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume",
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Linked native Claude Code session.",
+      `Claude Code session ${nativeSession.id} is now bound to this Workbench session.`,
+      {
+        agentSessionId: nativeSession.id,
+        kind: "claude-session-link",
+        source: "claude-jsonl-scan",
+      },
+    );
+    return updated;
+  }
+
   private async reconcileNativeSessionLink(task: Task, options: { includePending?: boolean } = {}): Promise<Task> {
     if (isGeminiBackendId(task.backendId)) {
       return this.reconcileGeminiSessionLink(task, options);
     }
     if (isCodexBackendId(task.backendId)) {
       return this.reconcileCodexSessionLink(task);
+    }
+    if (isClaudeBackendId(task.backendId)) {
+      return this.reconcileClaudeSessionLink(task);
     }
     return task;
   }
@@ -3635,8 +3829,22 @@ function isCodexBackendId(backendId: string): boolean {
   return backendId === "codex";
 }
 
+function isClaudeBackendId(backendId: string): boolean {
+  return backendId === "claude";
+}
+
 function isNativeCliBackendId(backendId: string): boolean {
-  return isGeminiBackendId(backendId) || isCodexBackendId(backendId);
+  return isGeminiBackendId(backendId) || isCodexBackendId(backendId) || isClaudeBackendId(backendId);
+}
+
+function nativeCliBackendName(backendId: NativeCliBackendId): string {
+  if (backendId === "gemini-acp") {
+    return "Gemini CLI";
+  }
+  if (backendId === "codex") {
+    return "OpenAI Codex";
+  }
+  return "Claude Code";
 }
 
 function isNativeGeminiCliSession(task: Task): boolean {

@@ -19,7 +19,7 @@ export type AgentContextStatus =
   | "transcript_fallback"
   | "unknown";
 
-export type BackendKind = "gemini" | "codex" | "generic-pty" | "external";
+export type BackendKind = "gemini" | "codex" | "claude" | "generic-pty" | "external";
 
 export type AgentCapability =
   | "terminal"
@@ -227,7 +227,28 @@ export interface GeminiProjectSession {
   summary?: string;
 }
 
+export type NativeCliBackendId = "gemini-acp" | "codex" | "claude";
+
+export interface NativeCliProjectSession {
+  backendId: NativeCliBackendId;
+  backendName: string;
+  displayName: string;
+  fileName?: string;
+  firstUserMessage: string;
+  id: string;
+  lastUpdated: string;
+  messageCount: number;
+  startTime: string;
+  summary?: string;
+}
+
 export interface ImportGeminiSessionRequest {
+  modeId?: string;
+  sessionId: string;
+}
+
+export interface ImportNativeCliSessionRequest {
+  backendId: NativeCliBackendId;
   modeId?: string;
   sessionId: string;
 }
@@ -585,9 +606,11 @@ export interface ApplySessionResponse {
 export interface ApplySessionRequest {
   expectedOriginalBranch?: string;
   expectedOriginalHead?: string;
+  targetBranch?: string;
 }
 
 export interface ApplyTargetResponse {
+  branches: ProjectBranch[];
   originalBranch?: string;
   originalHead: string;
   projectPath: string;

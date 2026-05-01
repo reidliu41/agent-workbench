@@ -20,9 +20,9 @@ import type {
   DiffSnapshot,
   ExportSessionReportResponse,
   ExportPatchResponse,
-  GeminiProjectSession,
+  NativeCliBackendId,
+  NativeCliProjectSession,
   Project,
-  ProjectBranchListResponse,
   ProjectDeliveryResponse,
   ProjectStatusFile,
   PushBranchResponse,
@@ -73,6 +73,11 @@ type OverviewFilter = "all" | "needs_action" | "running" | "review" | "blocked" 
 type OverviewSort = "priority" | "recent" | "project";
 type OverviewGroupId = "attention" | "quiet" | "ready" | "running";
 type SessionWorkspaceTab = "changes" | "work" | "snapshots" | "debug" | "shell";
+const nativeSessionBackendOptions: Array<{ id: NativeCliBackendId; label: string; placeholder: string }> = [
+  { id: "gemini-acp", label: "Gemini CLI", placeholder: "7488de20-aa48-4775-a09f-79e2738cec80" },
+  { id: "codex", label: "OpenAI Codex", placeholder: "codex resume id" },
+  { id: "claude", label: "Claude Code", placeholder: "b7cd7ff9-6fbe-483b-947b-b74daafc4936" },
+];
 
 interface PendingConfirmation {
   action: ConfirmableAction;
@@ -87,18 +92,17 @@ interface SessionOpenIntent {
 
 interface NewSessionDraft {
   backendId: string;
-  branchName: string;
   modeId: string;
   projectId: string;
   title: string;
 }
 
-interface ResumeGeminiDialogState {
+interface NativeSessionDialogState {
   project: Project;
-  sessions: GeminiProjectSession[];
+  sessions: NativeCliProjectSession[];
 }
 
-interface LinkedGeminiSessionState {
+interface LinkedNativeSessionState {
   current: boolean;
   task: Task;
 }
@@ -132,6 +136,7 @@ interface DeliveryActionInput {
   commitMessage?: string;
   files?: string[];
   remote?: string;
+  targetBranch?: string;
 }
 
 interface ContextDecision {
@@ -311,9 +316,9 @@ function App(): React.JSX.Element {
   const [renameTitle, setRenameTitle] = useState("");
   const [projectRenameDraft, setProjectRenameDraft] = useState<Project>();
   const [projectRenameName, setProjectRenameName] = useState("");
-  const [geminiResumeDialog, setGeminiResumeDialog] = useState<ResumeGeminiDialogState>();
-  const [geminiResumeLoading, setGeminiResumeLoading] = useState(false);
-  const [geminiResumeImportingId, setGeminiResumeImportingId] = useState<string>();
+  const [nativeSessionDialog, setNativeSessionDialog] = useState<NativeSessionDialogState>();
+  const [nativeSessionLoading, setNativeSessionLoading] = useState(false);
+  const [nativeSessionImportingKey, setNativeSessionImportingKey] = useState<string>();
   const [applyConflict, setApplyConflict] = useState<ConflictState>();
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation>();
   const [sessionDiagnostics, setSessionDiagnostics] = useState<SessionDiagnostics>();
@@ -586,7 +591,6 @@ function App(): React.JSX.Element {
     setSessionToolsMenuOpen(false);
     setNewSessionDraft({
       backendId: selectedBackendId,
-      branchName: nextWorkingBranchName(tasks, activeProject.id),
       modeId: selectedModeId,
       projectId: activeProject.id,
       title: nextSessionTitle(tasks, activeProject.id),
@@ -601,7 +605,6 @@ function App(): React.JSX.Element {
     }
     const draft = newSessionDraft ?? {
       backendId: selectedBackendId,
-      branchName: nextWorkingBranchName(tasks, activeProject?.id ?? projects[0]?.id ?? ""),
       modeId: selectedModeId,
       projectId: activeProject?.id ?? projects[0]?.id ?? "",
       title: nextSessionTitle(tasks, activeProject?.id ?? projects[0]?.id ?? ""),
@@ -621,7 +624,6 @@ function App(): React.JSX.Element {
           projectId: project.id,
           title,
           backendId: draft.backendId,
-          workingBranch: draft.branchName.trim(),
           modeId: draft.modeId,
         }),
       });
@@ -870,13 +872,13 @@ function App(): React.JSX.Element {
     }
   }
 
-  async function confirmSessionAction(): Promise<void> {
+  async function confirmSessionAction(input: DeliveryActionInput = {}): Promise<void> {
     const confirmation = pendingConfirmation;
     if (!confirmation) {
       return;
     }
     setPendingConfirmation(undefined);
-    await performSessionAction(confirmation.action, confirmation.task, confirmation.applyTarget);
+    await performSessionAction(confirmation.action, confirmation.task, confirmation.applyTarget, input);
   }
 
   async function openSessionActionConfirmation(action: ConfirmableAction, task: Task): Promise<void> {
@@ -938,7 +940,7 @@ function App(): React.JSX.Element {
     window.addEventListener("mouseup", handleMouseUp);
   }
 
-  async function openGeminiResumeDialog(projectId: string): Promise<void> {
+  async function openNativeSessionDialog(projectId: string): Promise<void> {
     const project = projects.find((item) => item.id === projectId);
     if (!project) {
       setError("Project not found.");
@@ -947,36 +949,38 @@ function App(): React.JSX.Element {
     setOpenSessionMenuId(undefined);
     setSessionToolsMenuOpen(false);
     setError(undefined);
-    setGeminiResumeLoading(true);
+    setNativeSessionLoading(true);
     try {
-      const sessions = await api<GeminiProjectSession[]>(`/api/projects/${project.id}/gemini-sessions`);
-      setGeminiResumeDialog({ project, sessions });
+      const sessions = await api<NativeCliProjectSession[]>(`/api/projects/${project.id}/native-sessions`);
+      setNativeSessionDialog({ project, sessions });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setGeminiResumeLoading(false);
+      setNativeSessionLoading(false);
     }
   }
 
-  async function importGeminiSession(projectId: string, sessionId: string): Promise<void> {
-    const linked = linkedGeminiTaskForSession(tasks, projectId, sessionId, selectedTaskId);
+  async function importNativeSession(projectId: string, backendId: NativeCliBackendId, sessionId: string): Promise<void> {
+    const linked = linkedNativeTaskForSession(tasks, projectId, backendId, sessionId, selectedTaskId);
     if (linked) {
       selectedTaskIdRef.current = linked.task.id;
       setSelectedTaskId(linked.task.id);
       setActiveView("session");
       setSessionTab("changes");
-      setGeminiResumeDialog(undefined);
-      setSelectedBackendId("gemini-acp");
-      setNotice(linked.current ? `Gemini session is already open: ${linked.task.title}` : `Opened linked Gemini session: ${linked.task.title}`);
+      setNativeSessionDialog(undefined);
+      setSelectedBackendId(backendId);
+      setNotice(linked.current ? `Native CLI session is already open: ${linked.task.title}` : `Opened linked native CLI session: ${linked.task.title}`);
       return;
     }
+    const importingKey = nativeSessionKey(backendId, sessionId);
     setError(undefined);
     setNotice(undefined);
-    setGeminiResumeImportingId(sessionId);
+    setNativeSessionImportingKey(importingKey);
     try {
-      const created = await api<Task>(`/api/projects/${projectId}/gemini-sessions/import`, {
+      const created = await api<Task>(`/api/projects/${projectId}/native-sessions/import`, {
         method: "POST",
         body: JSON.stringify({
+          backendId,
           modeId: selectedModeId,
           sessionId,
         }),
@@ -985,14 +989,14 @@ function App(): React.JSX.Element {
       selectedTaskIdRef.current = created.id;
       setSelectedTaskId(created.id);
       setActiveView("session");
-      setSelectedBackendId("gemini-acp");
+      setSelectedBackendId(backendId);
       setSessionTab("changes");
-      setGeminiResumeDialog(undefined);
-      setNotice(`Imported Gemini session: ${created.title}`);
+      setNativeSessionDialog(undefined);
+      setNotice(`Imported native CLI session: ${created.title}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setGeminiResumeImportingId(undefined);
+      setNativeSessionImportingKey(undefined);
     }
   }
 
@@ -1055,11 +1059,13 @@ function App(): React.JSX.Element {
       }
 
       if (action === "apply") {
+        const targetBranch = input.targetBranch?.trim() || applyTarget?.originalBranch;
         const result = await api<ApplySessionResponse>(`/api/sessions/${task.id}/apply`, {
           method: "POST",
           body: JSON.stringify({
             expectedOriginalBranch: applyTarget?.originalBranch,
             expectedOriginalHead: applyTarget?.originalHead,
+            targetBranch,
           }),
         });
         setTasks((current) => upsert(current, result.task));
@@ -1328,12 +1334,12 @@ function App(): React.JSX.Element {
                   New session...
                 </button>
                 <button
-                  disabled={!activeProject || geminiResumeLoading}
-                  onClick={() => activeProject && void openGeminiResumeDialog(activeProject.id)}
+                  disabled={!activeProject || nativeSessionLoading}
+                  onClick={() => activeProject && void openNativeSessionDialog(activeProject.id)}
                   role="menuitem"
                   type="button"
                 >
-                  {geminiResumeLoading ? "Loading Gemini..." : "Resume Gemini..."}
+                  {nativeSessionLoading ? "Loading sessions..." : "Import native CLI session..."}
                 </button>
               </div>
             ) : null}
@@ -1633,8 +1639,8 @@ function App(): React.JSX.Element {
           <aside className="inspector session-terminal-sidebar">
             <div className="session-terminal-header">
               <div>
-                <h3>Gemini Terminal</h3>
-                <small>Native agent CLI for this session. Linked Gemini sessions reopen with `gemini --resume &lt;id&gt;`.</small>
+                <h3>Agent Terminal</h3>
+                <small>Native agent CLI for this session. Linked Gemini, Codex, and Claude sessions reopen with their native resume command.</small>
               </div>
               {selectedTask ? <span className={`task-status-badge task-status-${selectedTask.status}`}>{sidebarTaskStatusLabel(selectedTask.status)}</span> : null}
             </div>
@@ -1743,7 +1749,7 @@ function App(): React.JSX.Element {
           applyTarget={pendingConfirmation.applyTarget}
           busy={busyAction === pendingConfirmation.action}
           onCancel={() => setPendingConfirmation(undefined)}
-          onConfirm={() => void confirmSessionAction()}
+          onConfirm={(targetBranch) => void confirmSessionAction({ targetBranch })}
           task={pendingConfirmation.task}
         />
       ) : null}
@@ -1771,18 +1777,18 @@ function App(): React.JSX.Element {
         />
       ) : null}
 
-      {geminiResumeDialog ? (
-        <ResumeGeminiDialog
+      {nativeSessionDialog ? (
+        <NativeSessionImportDialog
           currentTaskId={selectedTaskId}
-          importingId={geminiResumeImportingId}
+          importingKey={nativeSessionImportingKey}
           onCancel={() => {
-            if (!geminiResumeImportingId) {
-              setGeminiResumeDialog(undefined);
+            if (!nativeSessionImportingKey) {
+              setNativeSessionDialog(undefined);
             }
           }}
-          onImport={(sessionId) => void importGeminiSession(geminiResumeDialog.project.id, sessionId)}
-          project={geminiResumeDialog.project}
-          sessions={geminiResumeDialog.sessions}
+          onImport={(backendId, sessionId) => void importNativeSession(nativeSessionDialog.project.id, backendId, sessionId)}
+          project={nativeSessionDialog.project}
+          sessions={nativeSessionDialog.sessions}
           tasks={tasks}
         />
       ) : null}
@@ -4383,42 +4389,12 @@ function NewSessionDialog({
   projects: Project[];
 }): React.JSX.Element {
   const selectedProject = projects.find((project) => project.id === draft.projectId);
-  const [branches, setBranches] = useState<string[]>([]);
-  const [branchError, setBranchError] = useState<string>();
-  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
-
-  useEffect(() => {
-    if (!draft.projectId) {
-      setBranches([]);
-      return;
-    }
-    let cancelled = false;
-    void api<ProjectBranchListResponse>(`/api/projects/${draft.projectId}/branches`)
-      .then((result) => {
-        if (cancelled) {
-          return;
-        }
-        setBranches(result.branches.map((branch) => branch.name));
-        setBranchError(undefined);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setBranches([]);
-          setBranchError(error instanceof Error ? error.message : String(error));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [draft.projectId]);
 
   function updateProject(projectId: string): void {
     onChange({
       ...draft,
-      branchName: nextWorkingBranchName([], projectId),
       projectId,
     });
-    setBranchMenuOpen(false);
   }
 
   return (
@@ -4452,44 +4428,6 @@ function NewSessionDialog({
             {selectedProject ? <small>{selectedProject.path}</small> : null}
           </label>
           <label className="field">
-            <span>Working branch</span>
-            <div className="branch-picker">
-              <input
-                placeholder="new-branch-1"
-                value={draft.branchName}
-                onChange={(event) => onChange({ ...draft, branchName: event.currentTarget.value })}
-              />
-              <button
-                aria-expanded={branchMenuOpen}
-                aria-label="Show branches"
-                className="secondary branch-picker-toggle"
-                onClick={() => setBranchMenuOpen((open) => !open)}
-                type="button"
-              >
-                ▾
-              </button>
-              {branchMenuOpen ? (
-                <div className="branch-picker-menu">
-                  {branches.length > 0 ? branches.map((branch) => (
-                    <button
-                      className="secondary"
-                      key={branch}
-                      onClick={() => {
-                        onChange({ ...draft, branchName: branch });
-                        setBranchMenuOpen(false);
-                      }}
-                      type="button"
-                    >
-                      {branch}
-                    </button>
-                  )) : <small>No branches found.</small>}
-                </div>
-              ) : null}
-            </div>
-            <small>Workbench will create or switch the original repository to this branch before starting the isolated session.</small>
-            {branchError ? <small className="error-text">{branchError}</small> : null}
-          </label>
-          <label className="field">
             <span>Session name</span>
             <input value={draft.title} onChange={(event) => onChange({ ...draft, title: event.target.value })} />
           </label>
@@ -4516,12 +4454,18 @@ function NewSessionDialog({
           {draft.backendId === "gemini-acp" ? (
             <small>Gemini ACP sessions create and keep a native Gemini session ID automatically.</small>
           ) : null}
+          {draft.backendId === "codex" ? (
+            <small>Codex sessions run in the native terminal and Workbench links the Codex resume ID after Codex writes metadata.</small>
+          ) : null}
+          {draft.backendId === "claude" ? (
+            <small>Claude Code sessions use a fixed Workbench-created Claude session ID from the first attach, then reopen with claude --resume.</small>
+          ) : null}
         </div>
         <footer>
           <button className="secondary" onClick={onCancel} type="button">
             Cancel
           </button>
-          <button disabled={!draft.projectId || !draft.title.trim() || !draft.branchName.trim()} type="submit">
+          <button disabled={!draft.projectId || !draft.title.trim()} type="submit">
             Create session
           </button>
         </footer>
@@ -4530,9 +4474,9 @@ function NewSessionDialog({
   );
 }
 
-function ResumeGeminiDialog({
+function NativeSessionImportDialog({
   currentTaskId,
-  importingId,
+  importingKey,
   onCancel,
   onImport,
   project,
@@ -4540,65 +4484,81 @@ function ResumeGeminiDialog({
   tasks,
 }: {
   currentTaskId?: string;
-  importingId?: string;
+  importingKey?: string;
   onCancel: () => void;
-  onImport: (sessionId: string) => void;
+  onImport: (backendId: NativeCliBackendId, sessionId: string) => void;
   project: Project;
-  sessions: GeminiProjectSession[];
+  sessions: NativeCliProjectSession[];
   tasks: Task[];
 }): React.JSX.Element {
   const pageSize = 10;
+  const availableBackendIds = useMemo(() => nativeSessionBackendOptions.filter((option) => sessions.some((session) => session.backendId === option.id)), [sessions]);
+  const [backendId, setBackendId] = useState<NativeCliBackendId>(availableBackendIds[0]?.id ?? "gemini-acp");
   const [query, setQuery] = useState("");
   const [manualSessionId, setManualSessionId] = useState("");
   const [page, setPage] = useState(0);
+  const selectedBackend = nativeSessionBackendOptions.find((option) => option.id === backendId) ?? nativeSessionBackendOptions[0]!;
   const filteredSessions = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const matching = sessions.filter((session) =>
-      [
-        session.displayName,
-        session.firstUserMessage,
-        session.summary,
-        session.id,
-      ]
-        .filter(Boolean)
-        .some((value) => !needle || value?.toLowerCase().includes(needle)),
-    );
+    const matching = sessions
+      .filter((session) => session.backendId === backendId)
+      .filter((session) =>
+        [
+          session.backendName,
+          session.displayName,
+          session.firstUserMessage,
+          session.summary,
+          session.id,
+        ]
+          .filter(Boolean)
+          .some((value) => !needle || value?.toLowerCase().includes(needle)),
+      );
     return [...matching].sort((left, right) => Date.parse(right.lastUpdated) - Date.parse(left.lastUpdated));
-  }, [query, sessions]);
+  }, [backendId, query, sessions]);
   const totalPages = Math.max(1, Math.ceil(filteredSessions.length / pageSize));
   const currentPage = Math.min(page, totalPages - 1);
   const visibleSessions = filteredSessions.slice(currentPage * pageSize, currentPage * pageSize + pageSize);
 
   useEffect(() => {
     setPage(0);
-  }, [query]);
+  }, [backendId, query]);
 
   function submitManualSessionId(event: React.FormEvent): void {
     event.preventDefault();
     const sessionId = manualSessionId.trim();
-    if (!sessionId || importingId) {
+    if (!sessionId || importingKey) {
       return;
     }
-    onImport(sessionId);
+    onImport(backendId, sessionId);
   }
 
   return (
     <div className="modal-backdrop" onMouseDown={onCancel}>
       <section
-        aria-labelledby="resume-gemini-title"
+        aria-labelledby="native-session-import-title"
         aria-modal="true"
         className="modal wide"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
       >
         <header>
-          <h2 id="resume-gemini-title">Resume Gemini session</h2>
-          <p>{project.name} · open or import an existing Gemini CLI session into a linked Workbench session.</p>
+          <h2 id="native-session-import-title">Import native CLI session</h2>
+          <p>{project.name} · open or import an existing Gemini, Codex, or Claude session into a linked Workbench session.</p>
         </header>
         <div className="modal-body">
           <div className="resume-gemini-grid">
             <label className="field">
-              <span>Search Gemini sessions</span>
+              <span>Agent</span>
+              <select value={backendId} onChange={(event) => setBackendId(event.target.value as NativeCliBackendId)}>
+                {nativeSessionBackendOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}{availableBackendIds.some((available) => available.id === option.id) ? "" : " (none found)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Search {selectedBackend.label} sessions</span>
               <input
                 autoFocus
                 onChange={(event) => setQuery(event.target.value)}
@@ -4608,24 +4568,24 @@ function ResumeGeminiDialog({
             </label>
             <form className="resume-gemini-manual" onSubmit={submitManualSessionId}>
               <label className="field">
-                <span>Resume by session id</span>
+                <span>{selectedBackend.label} session ID</span>
                 <input
                   onChange={(event) => setManualSessionId(event.target.value)}
-                  placeholder="7488de20-aa48-4775-a09f-79e2738cec80"
+                  placeholder={selectedBackend.placeholder}
                   value={manualSessionId}
                 />
               </label>
-              <button disabled={!manualSessionId.trim() || Boolean(importingId)} type="submit">
-                {importingId === manualSessionId.trim() ? "Opening" : "Access"}
+              <button disabled={!manualSessionId.trim() || Boolean(importingKey)} type="submit">
+                {importingKey === nativeSessionKey(backendId, manualSessionId.trim()) ? "Opening" : "Access"}
               </button>
             </form>
           </div>
         </div>
         <div className="modal-body">
-          {sessions.length === 0 ? (
-            <p className="empty">No Gemini sessions were found for this project.</p>
+          {filteredSessions.length === 0 && !query.trim() ? (
+            <p className="empty">No {selectedBackend.label} sessions were found for this project.</p>
           ) : filteredSessions.length === 0 ? (
-            <p className="empty">No Gemini sessions match this search.</p>
+            <p className="empty">No {selectedBackend.label} sessions match this search.</p>
           ) : (
             <>
               <div className="resume-gemini-toolbar">
@@ -4635,7 +4595,7 @@ function ResumeGeminiDialog({
                 <div className="resume-gemini-pagination">
                   <button
                     className="secondary compact-button"
-                    disabled={currentPage === 0 || Boolean(importingId)}
+                    disabled={currentPage === 0 || Boolean(importingKey)}
                     onClick={() => setPage((value) => Math.max(0, value - 1))}
                     type="button"
                   >
@@ -4646,7 +4606,7 @@ function ResumeGeminiDialog({
                   </span>
                   <button
                     className="secondary compact-button"
-                    disabled={currentPage >= totalPages - 1 || Boolean(importingId)}
+                    disabled={currentPage >= totalPages - 1 || Boolean(importingKey)}
                     onClick={() => setPage((value) => Math.min(totalPages - 1, value + 1))}
                     type="button"
                   >
@@ -4656,13 +4616,15 @@ function ResumeGeminiDialog({
               </div>
               <div className="native-session-list">
                 {visibleSessions.map((session) => {
-                  const linked = linkedGeminiTaskForSession(tasks, project.id, session.id, currentTaskId);
+                  const linked = linkedNativeTaskForSession(tasks, project.id, session.backendId, session.id, currentTaskId);
+                  const key = nativeSessionKey(session.backendId, session.id);
                   return (
-                    <div className="native-session-item" key={session.id}>
+                    <div className="native-session-item" key={key}>
                       <span className="native-session-copy">
                         <strong>{session.displayName}</strong>
                         <small>{session.summary || session.firstUserMessage || session.id}</small>
                         <div className="native-session-meta">
+                          <small>{session.backendName}</small>
                           <small>{formatDateTime(session.lastUpdated)}</small>
                           <small>{session.messageCount} messages</small>
                           <code>{session.id}</code>
@@ -4677,11 +4639,11 @@ function ResumeGeminiDialog({
                         {linked ? <small>{linked.task.title}</small> : null}
                         <button
                           className="native-session-action secondary compact-button"
-                          disabled={Boolean(importingId)}
-                          onClick={() => onImport(session.id)}
+                          disabled={Boolean(importingKey)}
+                          onClick={() => onImport(session.backendId, session.id)}
                           type="button"
                         >
-                          {importingId === session.id ? "Opening" : linked ? (linked.current ? "Open current" : "Open linked") : "Access"}
+                          {importingKey === key ? "Opening" : linked ? (linked.current ? "Open current" : "Open linked") : "Access"}
                         </button>
                       </span>
                     </div>
@@ -4692,7 +4654,7 @@ function ResumeGeminiDialog({
           )}
         </div>
         <footer>
-          <button className="secondary" disabled={Boolean(importingId)} onClick={onCancel} type="button">
+          <button className="secondary" disabled={Boolean(importingKey)} onClick={onCancel} type="button">
             Close
           </button>
         </footer>
@@ -8444,10 +8406,18 @@ function ConfirmSessionActionDialog({
   applyTarget?: ApplyTargetResponse;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: (targetBranch?: string) => void;
   task: Task;
 }): React.JSX.Element {
   const targetBranch = applyTarget?.originalBranch || "detached HEAD / unknown branch";
+  const branchOptions = useMemo(
+    () => (applyTarget?.branches || []).map((branch) => branch.name).filter(Boolean),
+    [applyTarget?.branches],
+  );
+  const [targetBranchInput, setTargetBranchInput] = useState(applyTarget?.originalBranch || "");
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const normalizedTargetBranch = targetBranchInput.trim();
+  const targetBranchExists = normalizedTargetBranch ? branchOptions.includes(normalizedTargetBranch) : false;
   const title =
     action === "apply"
       ? "Confirm apply"
@@ -8458,13 +8428,14 @@ function ConfirmSessionActionDialog({
         : "Create draft PR";
   const body =
     action === "apply"
-      ? `Current original repository branch is ${targetBranch}. Apply this session to that branch?`
+      ? "Choose the original repository branch that should receive this isolated session. If the branch does not exist, Workbench will create it before applying."
       : action === "sync_latest"
         ? `Reset the isolated Agent Workbench worktree to the current original repository branch ${targetBranch}?`
       : action === "push_branch"
         ? "This commits the isolated worktree branch if needed and pushes it to the origin remote with git."
         : "This commits and pushes the isolated worktree branch with git, then creates a draft pull request through the current GitHub PR connector. Today that connector uses gh.";
   const label = action === "apply" ? "Confirm" : action === "sync_latest" ? "Sync to latest" : action === "push_branch" ? "Push branch" : "Create draft PR";
+  const confirmDisabled = busy || (action === "apply" && !normalizedTargetBranch);
 
   return (
     <div className="modal-backdrop" onMouseDown={onCancel}>
@@ -8489,7 +8460,58 @@ function ConfirmSessionActionDialog({
               </div>
               <div className="confirm-detail-row">
                 <span>{action === "sync_latest" ? "Target" : "Target branch"}</span>
-                <code>{action === "sync_latest" ? applyTarget?.worktreePath || task.worktreePath || "isolated session worktree" : targetBranch}</code>
+                {action === "sync_latest" ? (
+                  <code>{applyTarget?.worktreePath || task.worktreePath || "isolated session worktree"}</code>
+                ) : (
+                  <div className="confirm-branch-target">
+                    <div className="branch-picker">
+                      <input
+                        aria-label="Target branch"
+                        disabled={busy}
+                        onChange={(event) => setTargetBranchInput(event.target.value)}
+                        onFocus={() => setBranchMenuOpen(true)}
+                        placeholder="feature/name"
+                        value={targetBranchInput}
+                      />
+                      <button
+                        aria-label="Show branches"
+                        className="branch-picker-toggle"
+                        disabled={busy || branchOptions.length === 0}
+                        onClick={() => setBranchMenuOpen((open) => !open)}
+                        type="button"
+                      >
+                        ▾
+                      </button>
+                      {branchMenuOpen ? (
+                        <div className="branch-picker-menu">
+                          {branchOptions.length > 0 ? (
+                            branchOptions.map((branch) => (
+                              <button
+                                key={branch}
+                                onClick={() => {
+                                  setTargetBranchInput(branch);
+                                  setBranchMenuOpen(false);
+                                }}
+                                type="button"
+                              >
+                                {branch}
+                              </button>
+                            ))
+                          ) : (
+                            <small>No branches found.</small>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                    <small>
+                      {targetBranchExists
+                        ? "Existing branch. Workbench will switch the original repo there before applying."
+                        : normalizedTargetBranch
+                          ? "New branch. Workbench will create it from the original repo HEAD before applying."
+                          : "Enter or choose a branch name."}
+                    </small>
+                  </div>
+                )}
               </div>
               <div className="confirm-detail-row">
                 <span>Original HEAD</span>
@@ -8508,7 +8530,7 @@ function ConfirmSessionActionDialog({
           <button className="secondary" disabled={busy} onClick={onCancel} type="button">
             Cancel
           </button>
-          <button className="danger" disabled={busy} onClick={onConfirm} type="button">
+          <button className="danger" disabled={confirmDisabled} onClick={() => onConfirm(normalizedTargetBranch)} type="button">
             {busy ? "Working" : label}
           </button>
         </footer>
@@ -9882,14 +9904,28 @@ function modeLabel(modeId: string): string {
   return modeOptions.find((mode) => mode.id === modeId)?.label ?? modeId;
 }
 
+function isLinkedNativeSession(task?: Task): boolean {
+  return Boolean(task?.agentSessionId && (task.backendId === "gemini" || task.backendId === "gemini-acp" || task.backendId === "codex" || task.backendId === "claude"));
+}
+
+function nativeSessionAgentName(task: Task): string {
+  if (task.backendId === "codex") {
+    return "Codex";
+  }
+  if (task.backendId === "claude") {
+    return "Claude";
+  }
+  return "Gemini";
+}
+
 function isLinkedGeminiSession(task?: Task): boolean {
   return Boolean(task?.agentSessionId && (task.backendId === "gemini" || task.backendId === "gemini-acp"));
 }
 
-function isNativeGeminiCliSession(task?: Task): boolean {
+function isNativeCliSession(task?: Task): boolean {
   return Boolean(
     task?.agentSessionId &&
-      (task.backendId === "gemini" || task.backendId === "gemini-acp") &&
+      (task.backendId === "gemini" || task.backendId === "gemini-acp" || task.backendId === "codex" || task.backendId === "claude") &&
       (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported")),
   );
 }
@@ -9898,19 +9934,20 @@ function nativeSessionBadgeLabel(task: Task): string {
   if (isAcpOnlyGeminiSession(task)) {
     return "Gemini ACP";
   }
+  const agent = nativeSessionAgentName(task);
   if (task.agentSessionKind === "native-cli-pending") {
-    return "Gemini pending";
+    return `${agent} pending`;
   }
   if (task.agentSessionOrigin === "imported") {
-    return "Gemini imported";
+    return `${agent} imported`;
   }
   if (task.agentSessionResumeMode === "load") {
-    return "Gemini loaded";
+    return `${agent} loaded`;
   }
   if (task.agentSessionResumeMode === "resume") {
-    return "Gemini resumed";
+    return `${agent} resumed`;
   }
-  return "Gemini linked";
+  return `${agent} linked`;
 }
 
 function nativeSessionDisplayLabel(task: Task): string {
@@ -9918,20 +9955,21 @@ function nativeSessionDisplayLabel(task: Task): string {
 }
 
 function displaySessionId(task: Task): string {
-  return isNativeGeminiCliSession(task) ? task.agentSessionId! : task.id;
+  return isNativeCliSession(task) ? task.agentSessionId! : task.id;
 }
 
 function shortSessionIdentity(task: Task): string {
   if (task.agentSessionKind === "native-cli-pending" && task.agentSessionId) {
     return truncateMiddle(task.agentSessionId, 18);
   }
-  return truncateMiddle(displaySessionId(task), isLinkedGeminiSession(task) ? 18 : 12);
+  return truncateMiddle(displaySessionId(task), isLinkedNativeSession(task) ? 18 : 12);
 }
 
 function sessionIdentityTitle(task: Task): string {
   const publicId = displaySessionId(task);
+  const agent = nativeSessionAgentName(task);
   const parts = [
-    isLinkedGeminiSession(task) ? `Gemini session ID: ${publicId}` : `Workbench session ID: ${publicId}`,
+    isLinkedNativeSession(task) ? `${agent} session ID: ${publicId}` : `Workbench session ID: ${publicId}`,
     isAcpOnlyGeminiSession(task) ? `ACP session ID: ${task.agentSessionId}` : undefined,
     publicId !== task.id ? `Workbench internal ID: ${task.id}` : undefined,
   ].filter(Boolean);
@@ -9939,7 +9977,7 @@ function sessionIdentityTitle(task: Task): string {
 }
 
 function sessionListSubtitle(task: Task, backend: string): string {
-  return `${backend} · ${isLinkedGeminiSession(task) ? "Gemini" : "AW"} ${shortSessionIdentity(task)}`;
+  return `${backend} · ${isLinkedNativeSession(task) ? nativeSessionAgentName(task) : "AW"} ${shortSessionIdentity(task)}`;
 }
 
 function nativeSessionSummary(task: Task): string {
@@ -9948,7 +9986,7 @@ function nativeSessionSummary(task: Task): string {
     task.agentSessionKind === "native-cli-pending" ? `pending ${task.agentSessionId}` : undefined,
     isAcpOnlyGeminiSession(task) ? `ACP ${task.agentSessionId}` : undefined,
     task.agentSessionOrigin === "imported"
-      ? "imported from Gemini history"
+      ? `imported from ${nativeSessionAgentName(task)} history`
       : task.agentSessionOrigin === "new"
         ? "created by Workbench"
         : undefined,
@@ -9959,14 +9997,15 @@ function nativeSessionSummary(task: Task): string {
 }
 
 function nativeSessionTitle(task: Task): string {
+  const agent = nativeSessionAgentName(task);
   return [
-    "Linked Gemini native session.",
-    `Gemini session ID: ${displaySessionId(task)}.`,
-    task.agentSessionKind === "native-cli-pending" ? `Pending Gemini session ID: ${task.agentSessionId}. Workbench will not resume it until Gemini confirms it is resumable.` : undefined,
+    `Linked ${agent} native session.`,
+    `${agent} session ID: ${displaySessionId(task)}.`,
+    task.agentSessionKind === "native-cli-pending" ? `Pending ${agent} session ID: ${task.agentSessionId}. Workbench will not resume it until ${agent} confirms it is resumable.` : undefined,
     isAcpOnlyGeminiSession(task) ? `ACP session ID: ${task.agentSessionId}. Terminal will start Gemini without --resume until a native CLI session is detected.` : undefined,
     displaySessionId(task) !== task.id ? `Workbench internal ID: ${task.id}.` : undefined,
     task.agentSessionOrigin === "imported"
-      ? "Imported from project Gemini history."
+      ? `Imported from project ${agent} history.`
       : task.agentSessionOrigin === "new"
         ? "Created by Workbench for this session."
         : undefined,
@@ -9978,20 +10017,21 @@ function nativeSessionTitle(task: Task): string {
 }
 
 function isAcpOnlyGeminiSession(task: Task): boolean {
-  return isLinkedGeminiSession(task) && !isNativeGeminiCliSession(task);
+  return isLinkedGeminiSession(task) && !isNativeCliSession(task);
 }
 
-function linkedGeminiTaskForSession(
+function linkedNativeTaskForSession(
   tasks: Task[],
   projectId: string,
+  backendId: NativeCliBackendId,
   sessionId: string,
   currentTaskId?: string,
-): LinkedGeminiSessionState | undefined {
+): LinkedNativeSessionState | undefined {
   const task = tasks.find(
     (item) =>
       item.projectId === projectId &&
       item.agentSessionId === sessionId &&
-      (item.backendId === "gemini" || item.backendId === "gemini-acp"),
+      (backendId === "gemini-acp" ? item.backendId === "gemini" || item.backendId === "gemini-acp" : item.backendId === backendId),
   );
   if (!task) {
     return undefined;
@@ -10000,6 +10040,10 @@ function linkedGeminiTaskForSession(
     current: task.id === currentTaskId,
     task,
   };
+}
+
+function nativeSessionKey(backendId: NativeCliBackendId, sessionId: string): string {
+  return `${backendId}:${sessionId}`;
 }
 
 function formatDuration(ms: number): string {
@@ -10044,22 +10088,6 @@ function sessionCapableBackends(backends: BackendStatus[]): BackendStatus[] {
 
 function nextSessionTitle(tasks: Task[], projectId: string): string {
   return uniqueSessionTitle(tasks, projectId, "New Session");
-}
-
-function nextWorkingBranchName(tasks: Task[], projectId: string): string {
-  const existing = new Set(
-    tasks
-      .filter((task) => task.projectId === projectId)
-      .flatMap((task) => [task.baseBranch, ...(task.branches ?? []).map((branch) => branch.name)])
-      .filter((name): name is string => Boolean(name)),
-  );
-  for (let index = 1; index < 1000; index += 1) {
-    const name = `new-branch-${index}`;
-    if (!existing.has(name)) {
-      return name;
-    }
-  }
-  return `new-branch-${Date.now()}`;
 }
 
 function uniqueSessionTitle(tasks: Task[], projectId: string, requestedTitle: string): string {

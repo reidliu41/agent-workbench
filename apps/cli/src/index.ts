@@ -55,6 +55,7 @@ program.command("doctor").description("Check local prerequisites.").action(async
     checkCommand("git", ["--version"]),
     checkCommand(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
     checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
+    checkCommand(process.env.CLAUDE_CODE_COMMAND ?? "claude", ["--version"]),
     checkStore(storePath),
   ]);
 

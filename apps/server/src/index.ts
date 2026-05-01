@@ -8,7 +8,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as pty from "node-pty";
 import { EventBus, GitClient, WorkbenchOrchestrator, createLocalToken, createWorkbenchStore, extractToken } from "@agent-workbench/core";
-import { CodexTerminalBackend, GeminiAcpBackend, GeminiBackend, GenericPtyBackend } from "@agent-workbench/adapters";
+import { ClaudeTerminalBackend, CodexTerminalBackend, GeminiAcpBackend, GeminiBackend, GenericPtyBackend } from "@agent-workbench/adapters";
 import type {
   ClientMessage,
   AddProjectChangesRequest,
@@ -26,6 +26,9 @@ import type {
   DirectoryBrowserResponse,
   GeminiProjectSession,
   ImportGeminiSessionRequest,
+  ImportNativeCliSessionRequest,
+  NativeCliBackendId,
+  NativeCliProjectSession,
   RenameSessionRequest,
   RespondApprovalRequest,
   RuntimeConfigResponse,
@@ -80,7 +83,7 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
     store,
     git: new GitClient(),
     eventBus,
-    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new GenericPtyBackend()],
+    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new ClaudeTerminalBackend(), new GenericPtyBackend()],
     worktreeRoot,
   });
   await orchestrator.init();
@@ -138,6 +141,12 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         label: "Codex CLI terminal",
       },
       {
+        command: process.env.CLAUDE_CODE_COMMAND ?? "claude",
+        envVar: "CLAUDE_CODE_COMMAND",
+        id: "claude",
+        label: "Claude Code terminal",
+      },
+      {
         command: process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash",
         envVar: "AGENT_WORKBENCH_FALLBACK_COMMAND",
         id: "generic-pty",
@@ -163,16 +172,17 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
   }));
 
   app.get("/api/system/doctor", async (): Promise<SystemDoctorResponse> => {
-    const [node, git, gemini, codex, storage] = await Promise.all([
+    const [node, git, gemini, codex, claude, storage] = await Promise.all([
       checkCommand("node", ["-v"]),
       checkCommand("git", ["--version"]),
       checkCommand(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
       checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
+      checkCommand(process.env.CLAUDE_CODE_COMMAND ?? "claude", ["--version"]),
       store.health(),
     ]);
     const usesJsonStore = extname(storage.path).toLowerCase() === ".json";
     return {
-      checks: [node, git, gemini, codex],
+      checks: [node, git, gemini, codex, claude],
       host,
       port,
       storage: {
@@ -186,6 +196,7 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         usesJsonStore && !storage.backupExists ? "JSON storage backup has not been created yet." : undefined,
         gemini.ok ? undefined : "Gemini CLI is not available; structured Gemini ACP sessions will not work until it is installed and authenticated.",
         codex.ok ? undefined : "Codex CLI is not available; Codex terminal sessions will not work until it is installed and authenticated.",
+        claude.ok ? undefined : "Claude Code is not available; Claude terminal sessions will not work until it is installed and authenticated.",
       ].filter((warning): warning is string => Boolean(warning)),
     };
   });
@@ -271,6 +282,12 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
     return orchestrator.listProjectGeminiSessions(params.id);
   });
 
+  app.get("/api/projects/:id/native-sessions", async (request): Promise<NativeCliProjectSession[]> => {
+    const params = request.params as { id: string };
+    const query = request.query as { backendId?: NativeCliBackendId };
+    return orchestrator.listProjectNativeSessions(params.id, query.backendId);
+  });
+
   app.post("/api/projects/:id/gemini-sessions/import", async (request) => {
     const params = request.params as { id: string };
     const body = (request.body ?? {}) as Partial<ImportGeminiSessionRequest>;
@@ -278,6 +295,18 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
       throw new Error("Missing required field: sessionId");
     }
     return orchestrator.importGeminiSession(params.id, body.sessionId, body.modeId);
+  });
+
+  app.post("/api/projects/:id/native-sessions/import", async (request) => {
+    const params = request.params as { id: string };
+    const body = (request.body ?? {}) as Partial<ImportNativeCliSessionRequest>;
+    if (!body.backendId || typeof body.backendId !== "string") {
+      throw new Error("Missing required field: backendId");
+    }
+    if (!body.sessionId || typeof body.sessionId !== "string") {
+      throw new Error("Missing required field: sessionId");
+    }
+    return orchestrator.importNativeCliSession(params.id, body.backendId, body.sessionId, body.modeId);
   });
 
   app.get("/api/tasks", async () => orchestrator.listTasks());
@@ -814,6 +843,7 @@ interface TerminalHandle {
   obsolete?: boolean;
   recordedStart?: boolean;
   reportedCodexSessionId?: string;
+  reportedClaudeSessionId?: string;
   reportedGeminiSessionId?: string;
   sessionLinkRefresh?: NodeJS.Timeout;
   process: pty.IPty;
@@ -1042,6 +1072,10 @@ class TerminalManager {
       this.captureCodexSessionFromTerminal(taskId, handle);
       return;
     }
+    if (handle.task.backendId === "claude") {
+      this.captureClaudeSessionFromTerminal(taskId, handle);
+      return;
+    }
     this.captureGeminiSessionFromTerminal(taskId, handle);
   }
 
@@ -1061,6 +1095,15 @@ class TerminalManager {
     }
     handle.reportedCodexSessionId = sessionId;
     void this.orchestrator.recordTerminalCodexSession(taskId, sessionId).catch(() => undefined);
+  }
+
+  private captureClaudeSessionFromTerminal(taskId: string, handle: TerminalHandle): void {
+    const sessionId = extractClaudeResumeSessionId(handle.buffer.join(""));
+    if (!sessionId || sessionId === handle.reportedClaudeSessionId) {
+      return;
+    }
+    handle.reportedClaudeSessionId = sessionId;
+    void this.orchestrator.recordTerminalClaudeSession(taskId, sessionId).catch(() => undefined);
   }
 
   private broadcast(key: string, message: ServerMessage): void {
@@ -1128,15 +1171,24 @@ class TerminalManager {
 }
 
 function normalizeTerminalCommand(command?: string, task?: Task, worktreePath?: string): string {
-  const requested =
+    const requested =
     command?.trim() ||
     (task?.backendId === "codex"
       ? "codex"
+      : task?.backendId === "claude"
+        ? "claude"
       : process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task));
   if (task?.backendId === "codex" && isCodexTerminalCommand(requested)) {
     const sessionId = nativeCodexCliSessionId(task);
     const cd = worktreePath ? ` --cd ${shellQuote(worktreePath)}` : "";
     return sessionId ? `codex resume${cd} ${sessionId}` : `codex${cd}`;
+  }
+  if (task?.backendId === "claude" && isClaudeTerminalCommand(requested)) {
+    const sessionId = nativeClaudeCliSessionId(task);
+    if (sessionId) {
+      return task.agentSessionResumeMode === "resume" ? `claude --resume ${sessionId}` : `claude --session-id ${sessionId} --name ${shellQuote(task.title)}`;
+    }
+    return "claude";
   }
   if (!task || (task.backendId !== "gemini" && task.backendId !== "gemini-acp")) {
     return requested;
@@ -1149,7 +1201,13 @@ function normalizeTerminalCommand(command?: string, task?: Task, worktreePath?: 
 }
 
 function defaultTerminalCommand(task?: Task): string {
-  return task?.backendId === "codex" ? "codex" : "gemini";
+  if (task?.backendId === "codex") {
+    return "codex";
+  }
+  if (task?.backendId === "claude") {
+    return "claude";
+  }
+  return "gemini";
 }
 
 function terminalKey(taskId: string, channel: "agent" | "project-shell"): string {
@@ -1168,7 +1226,7 @@ function terminalWorktreeCommand(command: string, cwd: string, label = "isolated
 }
 
 function displaySessionId(task: Task): string {
-  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? task.id;
+  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? nativeClaudeCliSessionId(task) ?? task.id;
 }
 
 function nativeGeminiCliSessionId(task: Task): string | undefined {
@@ -1187,12 +1245,24 @@ function nativeCodexCliSessionId(task: Task): string | undefined {
     : undefined;
 }
 
+function nativeClaudeCliSessionId(task: Task): string | undefined {
+  return task.agentSessionId &&
+    task.backendId === "claude" &&
+    (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported"))
+    ? task.agentSessionId
+    : undefined;
+}
+
 function isGeminiTerminalCommand(command: string): boolean {
   return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
 }
 
 function isCodexTerminalCommand(command: string): boolean {
   return command === "codex" || /^codex\s+(resume|--cd|--no-alt-screen)(?:\s|$)/.test(command);
+}
+
+function isClaudeTerminalCommand(command: string): boolean {
+  return command === "claude" || /^claude\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
 }
 
 function shellQuote(value: string): string {
@@ -1253,6 +1323,15 @@ function extractCodexResumeSessionId(raw: string): string | undefined {
   return undefined;
 }
 
+function extractClaudeResumeSessionId(raw: string): string | undefined {
+  const text = stripTerminalControl(raw);
+  const resumeMatch = text.match(/claude\s+(?:--resume|-r|--session-id)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (resumeMatch?.[1]) {
+    return resumeMatch[1];
+  }
+  return undefined;
+}
+
 function stripTerminalControl(value: string): string {
   return value
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
@@ -1278,8 +1357,20 @@ async function requireToken(request: FastifyRequest, reply: FastifyReply, expect
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isStandaloneServerEntry()) {
   void startStandaloneServer();
+}
+
+function isStandaloneServerEntry(): boolean {
+  const entry = process.argv[1];
+  if (!entry) {
+    return false;
+  }
+  const modulePath = fileURLToPath(import.meta.url);
+  if (resolve(entry) !== resolve(modulePath)) {
+    return false;
+  }
+  return modulePath.replaceAll("\\", "/").endsWith("/apps/server/src/index.ts");
 }
 
 async function startStandaloneServer(): Promise<void> {
