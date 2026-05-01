@@ -3596,41 +3596,41 @@ var require_queue = __commonJS({
       queue.drained = drained;
       return queue;
       function push(value) {
-        var p = new Promise(function(resolve4, reject) {
+        var p = new Promise(function(resolve5, reject) {
           pushCb(value, function(err, result) {
             if (err) {
               reject(err);
               return;
             }
-            resolve4(result);
+            resolve5(result);
           });
         });
         p.catch(noop);
         return p;
       }
       function unshift(value) {
-        var p = new Promise(function(resolve4, reject) {
+        var p = new Promise(function(resolve5, reject) {
           unshiftCb(value, function(err, result) {
             if (err) {
               reject(err);
               return;
             }
-            resolve4(result);
+            resolve5(result);
           });
         });
         p.catch(noop);
         return p;
       }
       function drained() {
-        var p = new Promise(function(resolve4) {
+        var p = new Promise(function(resolve5) {
           process.nextTick(function() {
             if (queue.idle()) {
-              resolve4();
+              resolve5();
             } else {
               var previousDrain = queue.drain;
               queue.drain = function() {
                 if (typeof previousDrain === "function") previousDrain();
-                resolve4();
+                resolve5();
                 queue.drain = previousDrain;
               };
             }
@@ -3973,8 +3973,8 @@ var require_create_promise = __commonJS({
         reject: null,
         promise: null
       };
-      obj.promise = new Promise((resolve4, reject) => {
-        obj.resolve = resolve4;
+      obj.promise = new Promise((resolve5, reject) => {
+        obj.resolve = resolve5;
         obj.reject = reject;
       });
       return obj;
@@ -4243,11 +4243,11 @@ var require_thenify = __commonJS({
         return;
       }
       debug("thenify");
-      return (resolve4, reject) => {
+      return (resolve5, reject) => {
         const p = this._loadRegistered();
         return p.then(() => {
           this[kThenifyDoNotWrap] = true;
-          return resolve4(this._server);
+          return resolve5(this._server);
         }, reject);
       };
     }
@@ -4384,12 +4384,12 @@ var require_boot = __commonJS({
     inherits(Boot, EE);
     if ("asyncDispose" in Symbol) {
       Boot.prototype[Symbol.asyncDispose] = function() {
-        return new Promise((resolve4, reject) => {
+        return new Promise((resolve5, reject) => {
           this.close((err) => {
             if (err) {
               return reject(err);
             }
-            resolve4();
+            resolve5();
           });
         });
       };
@@ -4536,12 +4536,12 @@ var require_boot = __commonJS({
           throw new AVV_ERR_CALLBACK_NOT_FN("close", typeof func);
         }
       } else {
-        promise2 = new Promise(function(resolve4, reject) {
+        promise2 = new Promise(function(resolve5, reject) {
           func = function(err) {
             if (err) {
               return reject(err);
             }
-            resolve4();
+            resolve5();
           };
         });
       }
@@ -4561,7 +4561,7 @@ var require_boot = __commonJS({
         queueMicrotask(this.start.bind(this));
         return;
       }
-      return new Promise((resolve4, reject) => {
+      return new Promise((resolve5, reject) => {
         this._readyQ.push(readyPromiseCB);
         this.start();
         const relativeContext = this._current[0].server;
@@ -4569,7 +4569,7 @@ var require_boot = __commonJS({
           if (err) {
             reject(err);
           } else {
-            resolve4(relativeContext);
+            resolve5(relativeContext);
           }
           process.nextTick(done);
         }
@@ -5844,8 +5844,8 @@ var require_promise = __commonJS({
     var { kTestInternals } = require_symbols2();
     function withResolvers() {
       let res, rej;
-      const promise2 = new Promise((resolve4, reject) => {
-        res = resolve4;
+      const promise2 = new Promise((resolve5, reject) => {
+        res = resolve5;
         rej = reject;
       });
       return { promise: promise2, resolve: res, reject: rej };
@@ -5944,15 +5944,15 @@ var require_server = __commonJS({
         if (cb === void 0) {
           const listening = listenPromise.call(this, server, listenOptions);
           return listening.then((address) => {
-            const { promise: promise2, resolve: resolve4 } = PonyPromise.withResolvers();
+            const { promise: promise2, resolve: resolve5 } = PonyPromise.withResolvers();
             if (host === "localhost") {
               multipleBindings.call(this, server, httpHandler, options, listenOptions, () => {
                 this[kState].listening = true;
-                resolve4(address);
+                resolve5(address);
                 onListenHookRunner(this);
               });
             } else {
-              resolve4(address);
+              resolve5(address);
               onListenHookRunner(this);
             }
             return promise2;
@@ -6079,7 +6079,7 @@ var require_server = __commonJS({
       }
       return this.ready().then(() => {
         if (this[kState].aborted) return;
-        const { promise: promise2, resolve: resolve4, reject } = PonyPromise.withResolvers();
+        const { promise: promise2, resolve: resolve5, reject } = PonyPromise.withResolvers();
         const errEventHandler = (err) => {
           cleanup();
           this[kState].listening = false;
@@ -6088,7 +6088,7 @@ var require_server = __commonJS({
         const listeningEventHandler = () => {
           cleanup();
           this[kState].listening = true;
-          resolve4(logServerAddress.call(
+          resolve5(logServerAddress.call(
             this,
             server,
             listenOptions.listenTextResolver || defaultResolveServerListeningText
@@ -8785,7 +8785,7 @@ var require_thread_stream = __commonJS({
     var { version: version2 } = require_package();
     var { EventEmitter: EventEmitter2 } = __require("events");
     var { Worker } = __require("worker_threads");
-    var { join: join6 } = __require("path");
+    var { join: join8 } = __require("path");
     var { pathToFileURL } = __require("url");
     var { wait } = require_wait();
     var {
@@ -8821,7 +8821,7 @@ var require_thread_stream = __commonJS({
     function createWorker(stream, opts) {
       const { filename, workerData } = opts;
       const bundlerOverrides = "__bundlerPathsOverrides" in globalThis ? globalThis.__bundlerPathsOverrides : {};
-      const toExecute = bundlerOverrides["thread-stream-worker"] || join6(__dirname, "lib", "worker.js");
+      const toExecute = bundlerOverrides["thread-stream-worker"] || join8(__dirname, "lib", "worker.js");
       const worker = new Worker(toExecute, {
         ...opts.workerOpts,
         trackUnmanagedFds: false,
@@ -9210,10 +9210,10 @@ var require_transport = __commonJS({
   "node_modules/pino/lib/transport.js"(exports, module) {
     "use strict";
     var { createRequire } = __require("module");
-    var { existsSync } = __require("node:fs");
+    var { existsSync: existsSync2 } = __require("node:fs");
     var getCallers = require_caller();
-    var { join: join6, isAbsolute: isAbsolute2, sep: sep2 } = __require("node:path");
-    var { fileURLToPath: fileURLToPath2 } = __require("node:url");
+    var { join: join8, isAbsolute: isAbsolute2, sep: sep2 } = __require("node:path");
+    var { fileURLToPath: fileURLToPath3 } = __require("node:url");
     var sleep = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
@@ -9279,12 +9279,12 @@ var require_transport = __commonJS({
       let path = unquoted;
       if (path.startsWith("file://")) {
         try {
-          path = fileURLToPath2(path);
+          path = fileURLToPath3(path);
         } catch {
           return false;
         }
       }
-      return isAbsolute2(path) && !existsSync(path);
+      return isAbsolute2(path) && !existsSync2(path);
     }
     function stripQuotes(value) {
       const first = value[0];
@@ -9365,7 +9365,7 @@ var require_transport = __commonJS({
         throw new Error("only one of target or targets can be specified");
       }
       if (targets) {
-        target = bundlerOverrides["pino-worker"] || join6(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join8(__dirname, "worker.js");
         options.targets = targets.filter((dest) => dest.target).map((dest) => {
           return {
             ...dest,
@@ -9383,7 +9383,7 @@ var require_transport = __commonJS({
           });
         });
       } else if (pipeline) {
-        target = bundlerOverrides["pino-worker"] || join6(__dirname, "worker.js");
+        target = bundlerOverrides["pino-worker"] || join8(__dirname, "worker.js");
         options.pipelines = [pipeline.map((dest) => {
           return {
             ...dest,
@@ -9406,7 +9406,7 @@ var require_transport = __commonJS({
           return origin;
         }
         if (origin === "pino/file") {
-          return join6(__dirname, "..", "file.js");
+          return join8(__dirname, "..", "file.js");
         }
         let fixTarget2;
         for (const filePath of callers) {
@@ -10386,7 +10386,7 @@ var require_safe_stable_stringify = __commonJS({
               return circularValue;
             }
             let res = "";
-            let join6 = ",";
+            let join8 = ",";
             const originalIndentation = indentation;
             if (Array.isArray(value)) {
               if (value.length === 0) {
@@ -10400,7 +10400,7 @@ var require_safe_stable_stringify = __commonJS({
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join6 = `,
+                join8 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10408,13 +10408,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join6;
+                res += join8;
               }
               const tmp = stringifyFnReplacer(String(i), value, stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join6}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join8}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10435,7 +10435,7 @@ ${originalIndentation}`;
             let separator = "";
             if (spacer !== "") {
               indentation += spacer;
-              join6 = `,
+              join8 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10449,13 +10449,13 @@ ${indentation}`;
               const tmp = stringifyFnReplacer(key2, value, stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join6;
+                separator = join8;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...":${whitespace}"${getItemCount(removedKeys)} not stringified"`;
-              separator = join6;
+              separator = join8;
             }
             if (spacer !== "" && separator.length > 1) {
               res = `
@@ -10496,7 +10496,7 @@ ${originalIndentation}`;
             }
             const originalIndentation = indentation;
             let res = "";
-            let join6 = ",";
+            let join8 = ",";
             if (Array.isArray(value)) {
               if (value.length === 0) {
                 return "[]";
@@ -10509,7 +10509,7 @@ ${originalIndentation}`;
                 indentation += spacer;
                 res += `
 ${indentation}`;
-                join6 = `,
+                join8 = `,
 ${indentation}`;
               }
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
@@ -10517,13 +10517,13 @@ ${indentation}`;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
                 res += tmp2 !== void 0 ? tmp2 : "null";
-                res += join6;
+                res += join8;
               }
               const tmp = stringifyArrayReplacer(String(i), value[i], stack, replacer, spacer, indentation);
               res += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res += `${join6}"... ${getItemCount(removedKeys)} not stringified"`;
+                res += `${join8}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               if (spacer !== "") {
                 res += `
@@ -10536,7 +10536,7 @@ ${originalIndentation}`;
             let whitespace = "";
             if (spacer !== "") {
               indentation += spacer;
-              join6 = `,
+              join8 = `,
 ${indentation}`;
               whitespace = " ";
             }
@@ -10545,7 +10545,7 @@ ${indentation}`;
               const tmp = stringifyArrayReplacer(key2, value[key2], stack, replacer, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}:${whitespace}${tmp}`;
-                separator = join6;
+                separator = join8;
               }
             }
             if (spacer !== "" && separator.length > 1) {
@@ -10603,20 +10603,20 @@ ${originalIndentation}`;
               indentation += spacer;
               let res2 = `
 ${indentation}`;
-              const join7 = `,
+              const join9 = `,
 ${indentation}`;
               const maximumValuesToStringify = Math.min(value.length, maximumBreadth);
               let i = 0;
               for (; i < maximumValuesToStringify - 1; i++) {
                 const tmp2 = stringifyIndent(String(i), value[i], stack, spacer, indentation);
                 res2 += tmp2 !== void 0 ? tmp2 : "null";
-                res2 += join7;
+                res2 += join9;
               }
               const tmp = stringifyIndent(String(i), value[i], stack, spacer, indentation);
               res2 += tmp !== void 0 ? tmp : "null";
               if (value.length - 1 > maximumBreadth) {
                 const removedKeys = value.length - maximumBreadth - 1;
-                res2 += `${join7}"... ${getItemCount(removedKeys)} not stringified"`;
+                res2 += `${join9}"... ${getItemCount(removedKeys)} not stringified"`;
               }
               res2 += `
 ${originalIndentation}`;
@@ -10632,16 +10632,16 @@ ${originalIndentation}`;
               return '"[Object]"';
             }
             indentation += spacer;
-            const join6 = `,
+            const join8 = `,
 ${indentation}`;
             let res = "";
             let separator = "";
             let maximumPropertiesToStringify = Math.min(keyLength, maximumBreadth);
             if (isTypedArrayWithEntries(value)) {
-              res += stringifyTypedArray(value, join6, maximumBreadth);
+              res += stringifyTypedArray(value, join8, maximumBreadth);
               keys = keys.slice(value.length);
               maximumPropertiesToStringify -= value.length;
-              separator = join6;
+              separator = join8;
             }
             if (deterministic) {
               keys = sort(keys, comparator);
@@ -10652,13 +10652,13 @@ ${indentation}`;
               const tmp = stringifyIndent(key2, value[key2], stack, spacer, indentation);
               if (tmp !== void 0) {
                 res += `${separator}${strEscape(key2)}: ${tmp}`;
-                separator = join6;
+                separator = join8;
               }
             }
             if (keyLength > maximumBreadth) {
               const removedKeys = keyLength - maximumBreadth;
               res += `${separator}"...": "${getItemCount(removedKeys)} not stringified"`;
-              separator = join6;
+              separator = join8;
             }
             if (separator !== "") {
               res = `
@@ -18498,7 +18498,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve4.call(this, root, ref);
+      let _sch = resolve5.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a2 = root.localRefs) === null || _a2 === void 0 ? void 0 : _a2[ref];
         const { schemaId } = this.opts;
@@ -18525,7 +18525,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve4(root, ref) {
+    function resolve5(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -19100,7 +19100,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve4(baseURI, relativeURI, options) {
+    function resolve5(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
@@ -19327,7 +19327,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve4,
+      resolve: resolve5,
       resolveComponent,
       equal,
       serialize,
@@ -36601,9 +36601,9 @@ var require_light_my_request = __commonJS({
         const res = new Response(req, callback);
         return makeRequest(dispatchFunc, server, req, res);
       } else {
-        return new Promise((resolve4, reject) => {
+        return new Promise((resolve5, reject) => {
           const req = new RequestConstructor(options);
-          const res = new Response(req, resolve4, reject);
+          const res = new Response(req, resolve5, reject);
           makeRequest(dispatchFunc, server, req, res);
         });
       }
@@ -41361,7 +41361,7 @@ var require_buffer_list = __commonJS({
         }
       }, {
         key: "join",
-        value: function join6(s) {
+        value: function join8(s) {
           if (this.length === 0) return "";
           var p = this.head;
           var ret = "" + p.data;
@@ -42738,14 +42738,14 @@ var require_async_iterator = __commonJS({
       };
     }
     function readAndResolve(iter) {
-      var resolve4 = iter[kLastResolve];
-      if (resolve4 !== null) {
+      var resolve5 = iter[kLastResolve];
+      if (resolve5 !== null) {
         var data = iter[kStream].read();
         if (data !== null) {
           iter[kLastPromise] = null;
           iter[kLastResolve] = null;
           iter[kLastReject] = null;
-          resolve4(createIterResult(data, false));
+          resolve5(createIterResult(data, false));
         }
       }
     }
@@ -42753,13 +42753,13 @@ var require_async_iterator = __commonJS({
       process.nextTick(readAndResolve, iter);
     }
     function wrapForNext(lastPromise, iter) {
-      return function(resolve4, reject) {
+      return function(resolve5, reject) {
         lastPromise.then(function() {
           if (iter[kEnded]) {
-            resolve4(createIterResult(void 0, true));
+            resolve5(createIterResult(void 0, true));
             return;
           }
-          iter[kHandlePromise](resolve4, reject);
+          iter[kHandlePromise](resolve5, reject);
         }, reject);
       };
     }
@@ -42779,12 +42779,12 @@ var require_async_iterator = __commonJS({
           return Promise.resolve(createIterResult(void 0, true));
         }
         if (this[kStream].destroyed) {
-          return new Promise(function(resolve4, reject) {
+          return new Promise(function(resolve5, reject) {
             process.nextTick(function() {
               if (_this[kError]) {
                 reject(_this[kError]);
               } else {
-                resolve4(createIterResult(void 0, true));
+                resolve5(createIterResult(void 0, true));
               }
             });
           });
@@ -42807,13 +42807,13 @@ var require_async_iterator = __commonJS({
       return this;
     }), _defineProperty(_Object$setPrototypeO, "return", function _return() {
       var _this2 = this;
-      return new Promise(function(resolve4, reject) {
+      return new Promise(function(resolve5, reject) {
         _this2[kStream].destroy(null, function(err) {
           if (err) {
             reject(err);
             return;
           }
-          resolve4(createIterResult(void 0, true));
+          resolve5(createIterResult(void 0, true));
         });
       });
     }), _Object$setPrototypeO), AsyncIteratorPrototype);
@@ -42835,15 +42835,15 @@ var require_async_iterator = __commonJS({
         value: stream._readableState.endEmitted,
         writable: true
       }), _defineProperty(_Object$create, kHandlePromise, {
-        value: function value(resolve4, reject) {
+        value: function value(resolve5, reject) {
           var data = iterator[kStream].read();
           if (data) {
             iterator[kLastPromise] = null;
             iterator[kLastResolve] = null;
             iterator[kLastReject] = null;
-            resolve4(createIterResult(data, false));
+            resolve5(createIterResult(data, false));
           } else {
-            iterator[kLastResolve] = resolve4;
+            iterator[kLastResolve] = resolve5;
             iterator[kLastReject] = reject;
           }
         },
@@ -42862,12 +42862,12 @@ var require_async_iterator = __commonJS({
           iterator[kError] = err;
           return;
         }
-        var resolve4 = iterator[kLastResolve];
-        if (resolve4 !== null) {
+        var resolve5 = iterator[kLastResolve];
+        if (resolve5 !== null) {
           iterator[kLastPromise] = null;
           iterator[kLastResolve] = null;
           iterator[kLastReject] = null;
-          resolve4(createIterResult(void 0, true));
+          resolve5(createIterResult(void 0, true));
         }
         iterator[kEnded] = true;
       });
@@ -42882,7 +42882,7 @@ var require_async_iterator = __commonJS({
 var require_from = __commonJS({
   "node_modules/readable-stream/lib/internal/streams/from.js"(exports, module) {
     "use strict";
-    function asyncGeneratorStep(gen, resolve4, reject, _next, _throw, key, arg) {
+    function asyncGeneratorStep(gen, resolve5, reject, _next, _throw, key, arg) {
       try {
         var info = gen[key](arg);
         var value = info.value;
@@ -42891,7 +42891,7 @@ var require_from = __commonJS({
         return;
       }
       if (info.done) {
-        resolve4(value);
+        resolve5(value);
       } else {
         Promise.resolve(value).then(_next, _throw);
       }
@@ -42899,13 +42899,13 @@ var require_from = __commonJS({
     function _asyncToGenerator(fn) {
       return function() {
         var self2 = this, args = arguments;
-        return new Promise(function(resolve4, reject) {
+        return new Promise(function(resolve5, reject) {
           var gen = fn.apply(self2, args);
           function _next(value) {
-            asyncGeneratorStep(gen, resolve4, reject, _next, _throw, "next", value);
+            asyncGeneratorStep(gen, resolve5, reject, _next, _throw, "next", value);
           }
           function _throw(err) {
-            asyncGeneratorStep(gen, resolve4, reject, _next, _throw, "throw", err);
+            asyncGeneratorStep(gen, resolve5, reject, _next, _throw, "throw", err);
           }
           _next(void 0);
         });
@@ -44377,16 +44377,16 @@ var require_websocket2 = __commonJS({
         const clientStream = new Duplexify(client2Server, server2Client);
         const ws = new WebSocket(null, void 0, { isServer: false });
         const head = Buffer.from([]);
-        let resolve4, reject;
+        let resolve5, reject;
         const promise2 = new Promise((_resolve, _reject) => {
-          resolve4 = _resolve;
+          resolve5 = _resolve;
           reject = _reject;
         });
         typeof options.onInit === "function" && options.onInit(ws);
         ws.on("open", () => {
           typeof options.onOpen === "function" && options.onOpen(ws);
           clientStream.removeListener("data", onData);
-          resolve4(ws);
+          resolve5(ws);
         });
         const onData = (chunk) => {
           if (chunk.toString().includes("HTTP/1.1 101 Switching Protocols")) {
@@ -44533,8 +44533,11 @@ var require_websocket2 = __commonJS({
 });
 
 // apps/cli/src/index.ts
-import { spawn as spawn7 } from "node:child_process";
+import { spawn as spawn8 } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { stat as stat3 } from "node:fs/promises";
+import { dirname as dirname5, join as join7 } from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
@@ -44580,7 +44583,7 @@ var GitClient = class {
     return this.runCommand("git", args, cwd);
   }
   async runCommand(command, args, cwd, input) {
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       const child = spawn(command, args, {
         cwd,
         stdio: ["pipe", "pipe", "pipe"]
@@ -44598,7 +44601,7 @@ var GitClient = class {
       });
       child.on("error", reject);
       child.on("close", (exitCode) => {
-        resolve4({ stdout, stderr, exitCode: exitCode ?? 1 });
+        resolve5({ stdout, stderr, exitCode: exitCode ?? 1 });
       });
     });
   }
@@ -45058,15 +45061,174 @@ function parseStatusPorcelain(status) {
 
 // packages/core/src/orchestrator/workbenchOrchestrator.ts
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir as mkdir2, readFile as readFile2, readdir as readdir2, stat, writeFile as writeFile2 } from "node:fs/promises";
-import { dirname, extname, isAbsolute, join as join2, relative, resolve as resolve2, sep } from "node:path";
-import { homedir as homedir2 } from "node:os";
+import { appendFile, mkdir as mkdir2, readFile as readFile3, readdir as readdir3, stat, writeFile as writeFile2 } from "node:fs/promises";
+import { dirname, extname, isAbsolute, join as join3, relative, resolve as resolve3, sep } from "node:path";
+import { homedir as homedir3 } from "node:os";
+
+// packages/core/src/integrations/codexSessions.ts
+import { readFile, readdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+async function listCodexProjectSessions(projectRoot, includeEmpty = false) {
+  const root = normalizePath(projectRoot);
+  const files = await findCodexRolloutFiles(codexSessionsDir());
+  const sessions = await Promise.all(
+    files.map(async (filePath) => {
+      try {
+        const record2 = await loadCodexProjectSession(filePath, includeEmpty);
+        if (!record2.session.cwd || normalizePath(record2.session.cwd) !== root) {
+          return void 0;
+        }
+        return record2.session;
+      } catch {
+        return void 0;
+      }
+    })
+  );
+  return sessions.filter((session) => Boolean(session)).filter((session, index, all) => all.findIndex((candidate) => candidate.id === session.id) === index).sort((left, right) => Date.parse(right.lastUpdated) - Date.parse(left.lastUpdated));
+}
+async function findLatestCodexProjectSession(projectRoot, since) {
+  const sessions = await listCodexProjectSessions(projectRoot, true);
+  const sinceMs = since ? Date.parse(since) : 0;
+  return sessions.find((session) => Date.parse(session.startTime || session.lastUpdated) >= sinceMs - 3e3) ?? sessions[0];
+}
+async function findCodexRolloutFiles(root) {
+  let entries;
+  try {
+    entries = await readdir(root, { encoding: "utf8", withFileTypes: true });
+  } catch (error48) {
+    if (isNodeError(error48, "ENOENT")) {
+      return [];
+    }
+    throw error48;
+  }
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const path = join(root, entry.name);
+      if (entry.isDirectory()) {
+        return findCodexRolloutFiles(path);
+      }
+      return entry.isFile() && entry.name.startsWith("rollout-") && entry.name.endsWith(".jsonl") ? [path] : [];
+    })
+  );
+  return nested.flat();
+}
+async function loadCodexProjectSession(filePath, includeEmpty) {
+  const raw = await readFile(filePath, "utf8");
+  const session = parseCodexSessionText(raw, filePath, includeEmpty);
+  if (!session) {
+    throw new Error(`Codex session not found in ${filePath}`);
+  }
+  return {
+    fileName: filePath.split("/").at(-1) ?? filePath,
+    session
+  };
+}
+function parseCodexSessionText(raw, filePath, includeEmpty) {
+  const fileName = filePath.split("/").at(-1) ?? filePath;
+  const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) {
+    return void 0;
+  }
+  let cwd;
+  let id = "";
+  let timestamp = "";
+  let firstUserMessage = "";
+  let messageCount = 0;
+  for (const line of lines) {
+    let record2;
+    try {
+      record2 = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (isObject(record2) && typeof record2.id === "string" && !id) {
+      id = record2.id;
+      timestamp = typeof record2.timestamp === "string" ? record2.timestamp : timestamp;
+      continue;
+    }
+    if (!isObject(record2)) {
+      continue;
+    }
+    const type = typeof record2.type === "string" ? record2.type : "";
+    const payload = isObject(record2.payload) ? record2.payload : void 0;
+    if (type === "session_meta" && payload) {
+      id = typeof payload.id === "string" ? payload.id : id;
+      cwd = typeof payload.cwd === "string" ? payload.cwd : cwd;
+      timestamp = typeof payload.timestamp === "string" ? payload.timestamp : timestamp;
+      continue;
+    }
+    if (type === "turn_context" && payload && typeof payload.cwd === "string") {
+      cwd = payload.cwd;
+      continue;
+    }
+    if (type === "message" && typeof record2.role === "string") {
+      messageCount += 1;
+      if (record2.role === "user" && !firstUserMessage) {
+        firstUserMessage = cleanCodexMessage(record2.content);
+      }
+    }
+  }
+  if (!id || !includeEmpty && messageCount === 0) {
+    return void 0;
+  }
+  const lastUpdated = timestamp || timestampFromRolloutFileName(fileName) || (/* @__PURE__ */ new Date(0)).toISOString();
+  const title = firstUserMessage || id;
+  return {
+    cwd,
+    displayName: title,
+    fileName,
+    firstUserMessage: firstUserMessage || title,
+    id,
+    lastUpdated,
+    messageCount,
+    startTime: timestamp || lastUpdated
+  };
+}
+function cleanCodexMessage(content) {
+  if (typeof content === "string") {
+    return content.trim().replace(/\s+/g, " ").slice(0, 180);
+  }
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return content.map((item) => {
+    if (!isObject(item)) {
+      return "";
+    }
+    return typeof item.text === "string" ? item.text : "";
+  }).join(" ").trim().replace(/\s+/g, " ").slice(0, 180);
+}
+function timestampFromRolloutFileName(fileName) {
+  const match = /^rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})/.exec(fileName);
+  if (!match) {
+    return void 0;
+  }
+  const stamp = match[1];
+  if (!stamp) {
+    return void 0;
+  }
+  const iso = `${stamp.replaceAll("-", ":").replace(/^(\d{4}):(\d{2}):(\d{2})T/, "$1-$2-$3T")}Z`;
+  return Number.isNaN(Date.parse(iso)) ? void 0 : iso;
+}
+function codexSessionsDir() {
+  return join(process.env.CODEX_HOME || join(homedir(), ".codex"), "sessions");
+}
+function normalizePath(path) {
+  return resolve(path);
+}
+function isObject(value) {
+  return Boolean(value && typeof value === "object");
+}
+function isNodeError(error48, code) {
+  return Boolean(error48 && typeof error48 === "object" && "code" in error48 && error48.code === code);
+}
 
 // packages/core/src/integrations/geminiSessions.ts
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { basename as basename2, join, resolve } from "node:path";
+import { copyFile, mkdir, readFile as readFile2, readdir as readdir2, writeFile } from "node:fs/promises";
+import { homedir as homedir2 } from "node:os";
+import { basename as basename2, join as join2, resolve as resolve2 } from "node:path";
 var GEMINI_SESSION_FILE_PREFIX = "session-";
 var GEMINI_PROJECT_ROOT_MARKER = ".project_root";
 async function listGeminiProjectSessions(projectRoot) {
@@ -45081,9 +45243,9 @@ async function listGeminiProjectSessionRecords(projectRoot, includeEmpty) {
   for (const chatsDir of chatsDirs) {
     let entries;
     try {
-      entries = await readdir(chatsDir, { encoding: "utf8", withFileTypes: true });
+      entries = await readdir2(chatsDir, { encoding: "utf8", withFileTypes: true });
     } catch (error48) {
-      if (isNodeError(error48, "ENOENT")) {
+      if (isNodeError2(error48, "ENOENT")) {
         continue;
       }
       throw error48;
@@ -45091,7 +45253,7 @@ async function listGeminiProjectSessionRecords(projectRoot, includeEmpty) {
     sessions.push(
       ...await Promise.all(
         entries.filter((entry) => entry.isFile() && isGeminiSessionFile(entry.name)).map(async (entry) => {
-          const filePath = join(chatsDir, entry.name);
+          const filePath = join2(chatsDir, entry.name);
           try {
             return await loadGeminiProjectSession(filePath, includeEmpty);
           } catch {
@@ -45107,7 +45269,7 @@ async function bridgeGeminiSessionToWorktree(projectRoot, worktreePath, sessionI
   const resolved = await resolveGeminiProjectSession(projectRoot, sessionId);
   const targetDir = await geminiChatsDir(worktreePath);
   await mkdir(targetDir, { recursive: true });
-  await copyFile(resolved.filePath, join(targetDir, basename2(resolved.filePath)));
+  await copyFile(resolved.filePath, join2(targetDir, basename2(resolved.filePath)));
   return resolved.session;
 }
 async function resolveGeminiProjectSession(projectRoot, sessionId) {
@@ -45116,10 +45278,10 @@ async function resolveGeminiProjectSession(projectRoot, sessionId) {
   for (const chatsDir of chatsDirs) {
     let entries;
     try {
-      entries = await readdir(chatsDir, { encoding: "utf8", withFileTypes: true });
+      entries = await readdir2(chatsDir, { encoding: "utf8", withFileTypes: true });
       sawDirectory = true;
     } catch (error48) {
-      if (isNodeError(error48, "ENOENT")) {
+      if (isNodeError2(error48, "ENOENT")) {
         continue;
       }
       throw error48;
@@ -45128,7 +45290,7 @@ async function resolveGeminiProjectSession(projectRoot, sessionId) {
       if (!entry.isFile() || !isGeminiSessionFile(entry.name)) {
         continue;
       }
-      const filePath = join(chatsDir, entry.name);
+      const filePath = join2(chatsDir, entry.name);
       const session = await loadGeminiProjectSession(filePath).catch(() => void 0);
       if (session?.id === sessionId) {
         return { filePath, session };
@@ -45141,7 +45303,7 @@ async function resolveGeminiProjectSession(projectRoot, sessionId) {
   throw new Error(`Gemini session not found: ${sessionId}`);
 }
 async function loadGeminiProjectSession(filePath, includeEmpty = false) {
-  const raw = await readFile(filePath, "utf8");
+  const raw = await readFile2(filePath, "utf8");
   return parseGeminiSessionText(raw, basename2(filePath), includeEmpty);
 }
 function parseGeminiSessionText(raw, fileName, includeEmpty) {
@@ -45250,11 +45412,11 @@ async function geminiCandidateChatsDirs(projectRoot) {
   return current === legacy ? [current] : [current, legacy];
 }
 async function geminiChatsDir(projectRoot) {
-  return join(geminiTmpDir(), await geminiProjectIdentifier(projectRoot), "chats");
+  return join2(geminiTmpDir(), await geminiProjectIdentifier(projectRoot), "chats");
 }
 async function geminiProjectIdentifier(projectRoot) {
   const normalized = normalizeGeminiProjectPath(projectRoot);
-  const registryPath = join(geminiHomeDir(), "projects.json");
+  const registryPath = join2(geminiHomeDir(), "projects.json");
   const registry2 = await readGeminiProjectsRegistry(registryPath);
   const existing = registry2.projects?.[normalized];
   if (existing && await geminiSlugBelongsToProject(existing, normalized)) {
@@ -45271,11 +45433,11 @@ async function geminiProjectIdentifier(projectRoot) {
 }
 async function readGeminiProjectsRegistry(registryPath) {
   try {
-    const raw = await readFile(registryPath, "utf8");
+    const raw = await readFile2(registryPath, "utf8");
     const parsed = JSON.parse(raw);
     return { projects: parsed.projects && typeof parsed.projects === "object" ? parsed.projects : {} };
   } catch (error48) {
-    if (isNodeError(error48, "ENOENT")) {
+    if (isNodeError2(error48, "ENOENT")) {
       return { projects: {} };
     }
     throw error48;
@@ -45297,14 +45459,14 @@ async function claimGeminiProjectSlug(projectRoot, existingMappings) {
 }
 async function geminiSlugBelongsToProject(slug, projectRoot) {
   for (const baseDir of geminiProjectBaseDirs()) {
-    const markerPath = join(baseDir, slug, GEMINI_PROJECT_ROOT_MARKER);
+    const markerPath = join2(baseDir, slug, GEMINI_PROJECT_ROOT_MARKER);
     try {
-      const owner = (await readFile(markerPath, "utf8")).trim();
+      const owner = (await readFile2(markerPath, "utf8")).trim();
       if (normalizeGeminiProjectPath(owner) !== normalizeGeminiProjectPath(projectRoot)) {
         return false;
       }
     } catch (error48) {
-      if (isNodeError(error48, "ENOENT")) {
+      if (isNodeError2(error48, "ENOENT")) {
         continue;
       }
       return false;
@@ -45314,14 +45476,14 @@ async function geminiSlugBelongsToProject(slug, projectRoot) {
 }
 async function geminiSlugBelongsToAnotherProject(slug, projectRoot) {
   for (const baseDir of geminiProjectBaseDirs()) {
-    const markerPath = join(baseDir, slug, GEMINI_PROJECT_ROOT_MARKER);
+    const markerPath = join2(baseDir, slug, GEMINI_PROJECT_ROOT_MARKER);
     try {
-      const owner = (await readFile(markerPath, "utf8")).trim();
+      const owner = (await readFile2(markerPath, "utf8")).trim();
       if (normalizeGeminiProjectPath(owner) !== normalizeGeminiProjectPath(projectRoot)) {
         return true;
       }
     } catch (error48) {
-      if (isNodeError(error48, "ENOENT")) {
+      if (isNodeError2(error48, "ENOENT")) {
         continue;
       }
       return true;
@@ -45332,16 +45494,16 @@ async function geminiSlugBelongsToAnotherProject(slug, projectRoot) {
 async function ensureGeminiOwnershipMarkers(slug, projectRoot) {
   const normalized = normalizeGeminiProjectPath(projectRoot);
   for (const baseDir of geminiProjectBaseDirs()) {
-    const slugDir = join(baseDir, slug);
-    const markerPath = join(slugDir, GEMINI_PROJECT_ROOT_MARKER);
+    const slugDir = join2(baseDir, slug);
+    const markerPath = join2(slugDir, GEMINI_PROJECT_ROOT_MARKER);
     await mkdir(slugDir, { recursive: true });
     try {
       await writeFile(markerPath, normalized, { encoding: "utf8", flag: "wx" });
     } catch (error48) {
-      if (!isNodeError(error48, "EEXIST")) {
+      if (!isNodeError2(error48, "EEXIST")) {
         throw error48;
       }
-      const owner = (await readFile(markerPath, "utf8")).trim();
+      const owner = (await readFile2(markerPath, "utf8")).trim();
       if (normalizeGeminiProjectPath(owner) !== normalized) {
         throw new Error(`Gemini project id ${slug} is already owned by ${owner}`);
       }
@@ -45349,22 +45511,22 @@ async function ensureGeminiOwnershipMarkers(slug, projectRoot) {
   }
 }
 function legacyGeminiChatsDir(projectRoot) {
-  return join(geminiTmpDir(), geminiProjectHash(projectRoot), "chats");
+  return join2(geminiTmpDir(), geminiProjectHash(projectRoot), "chats");
 }
 function geminiProjectHash(projectRoot) {
   return createHash("sha256").update(normalizeGeminiProjectPath(projectRoot)).digest("hex");
 }
 function geminiProjectBaseDirs() {
-  return [geminiTmpDir(), join(geminiHomeDir(), "history")];
+  return [geminiTmpDir(), join2(geminiHomeDir(), "history")];
 }
 function geminiTmpDir() {
-  return join(geminiHomeDir(), "tmp");
+  return join2(geminiHomeDir(), "tmp");
 }
 function geminiHomeDir() {
-  return join(homedir(), ".gemini");
+  return join2(homedir2(), ".gemini");
 }
 function normalizeGeminiProjectPath(projectRoot) {
-  return resolve(projectRoot);
+  return resolve2(projectRoot);
 }
 function slugifyGeminiProject(text) {
   return text.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "project";
@@ -45408,7 +45570,7 @@ function extractTextFromContent(content) {
 function cleanMessage(message) {
   return message.replace(/\n+/g, " ").replace(/\s+/g, " ").replace(/[^\x20-\x7E]+/g, "").trim();
 }
-function isNodeError(error48, code) {
+function isNodeError2(error48, code) {
   return Boolean(error48 && typeof error48 === "object" && "code" in error48 && error48.code === code);
 }
 
@@ -45419,7 +45581,7 @@ var WorkbenchOrchestrator = class {
     for (const backend of options.backends) {
       this.backends.set(backend.id, backend);
     }
-    this.worktreeRoot = options.worktreeRoot ?? join2(homedir2(), ".agent-workbench", "worktrees");
+    this.worktreeRoot = options.worktreeRoot ?? join3(homedir3(), ".agent-workbench", "worktrees");
   }
   options;
   activeTurns = /* @__PURE__ */ new Map();
@@ -45636,7 +45798,7 @@ var WorkbenchOrchestrator = class {
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const id = randomUUID();
     const worktreeBranch = `agent-workbench/${id}`;
-    const worktreePath = join2(this.worktreeRoot, project.name, id);
+    const worktreePath = join3(this.worktreeRoot, project.name, id);
     await this.options.git.createWorktree(project.path, worktreePath, worktreeBranch, input.baseBranch ?? project.defaultBranch);
     let task = {
       id,
@@ -45684,7 +45846,7 @@ var WorkbenchOrchestrator = class {
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const id = randomUUID();
     const worktreeBranch = `agent-workbench/${id}`;
-    const worktreePath = join2(this.worktreeRoot, project.name, id);
+    const worktreePath = join3(this.worktreeRoot, project.name, id);
     const workingBranch = normalizeBranchName(input.workingBranch);
     if (workingBranch) {
       if (!await this.options.git.branchExists(project.path, workingBranch)) {
@@ -45705,8 +45867,8 @@ var WorkbenchOrchestrator = class {
       prompt: "",
       status: "starting",
       agentSessionId: input.agentSessionId,
-      agentSessionKind: input.agentSessionId && isGeminiBackendId(backendId) ? "native-cli" : void 0,
-      agentSessionOrigin: isGeminiBackendId(backendId) ? input.agentSessionId ? "imported" : "new" : void 0,
+      agentSessionKind: input.agentSessionId && isNativeCliBackendId(backendId) ? "native-cli" : void 0,
+      agentSessionOrigin: isNativeCliBackendId(backendId) ? input.agentSessionId ? "imported" : "new" : void 0,
       baseBranch,
       modeId: input.modeId,
       worktreePath,
@@ -46338,13 +46500,13 @@ ${dirty.trim()}`);
     };
   }
   async originalMatchesSessionHead(projectPath, worktreePath, path) {
-    const absolutePath = resolve2(projectPath, path);
-    const root = resolve2(projectPath);
+    const absolutePath = resolve3(projectPath, path);
+    const root = resolve3(projectPath);
     if (absolutePath !== root && !absolutePath.startsWith(`${root}${sep}`)) {
       return false;
     }
     const [originalContent, sessionHeadContent] = await Promise.all([
-      readFile2(absolutePath, "utf8").catch(() => void 0),
+      readFile3(absolutePath, "utf8").catch(() => void 0),
       this.options.git.fileAtRef(worktreePath, "HEAD", path)
     ]);
     return originalContent !== void 0 && sessionHeadContent !== void 0 && originalContent === sessionHeadContent;
@@ -46783,13 +46945,13 @@ ${dirty.trim()}`);
       throw new Error("Snapshot not found.");
     }
     try {
-      const patchText = await readFile2(snapshot.patchPath, "utf8");
+      const patchText = await readFile3(snapshot.patchPath, "utf8");
       return {
         patchText,
         snapshot
       };
     } catch (error48) {
-      if (isNodeError2(error48, "ENOENT")) {
+      if (isNodeError3(error48, "ENOENT")) {
         throw new Error(`Snapshot patch file not found: ${snapshot.patchPath}`);
       }
       throw error48;
@@ -46799,7 +46961,7 @@ ${dirty.trim()}`);
     return this.writeSessionSnapshot(task, project, patchText, summarizeDiff(patchText), kind, label);
   }
   async writeSessionSnapshot(task, project, patchText, summary, kind, label, description) {
-    const snapshotDir = join2(homedir2(), ".agent-workbench", "snapshots", sanitizePathSegment(project.name), task.id);
+    const snapshotDir = join3(homedir3(), ".agent-workbench", "snapshots", sanitizePathSegment(project.name), task.id);
     await mkdir2(snapshotDir, { recursive: true });
     const snapshot = {
       description: description?.trim() || void 0,
@@ -46807,7 +46969,7 @@ ${dirty.trim()}`);
       taskId: task.id,
       kind,
       label,
-      patchPath: join2(snapshotDir, `${Date.now()}-${sanitizePathSegment(label)}.patch`),
+      patchPath: join3(snapshotDir, `${Date.now()}-${sanitizePathSegment(label)}.patch`),
       summary,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
@@ -46824,7 +46986,7 @@ ${dirty.trim()}`);
     }
     await this.emitAction(task.id, "rollback", "started", `Rolling back with snapshot: ${snapshot.label}.`, snapshot.patchPath);
     try {
-      const patchText = await readFile2(snapshot.patchPath, "utf8");
+      const patchText = await readFile3(snapshot.patchPath, "utf8");
       if (!patchText.trim()) {
         throw new Error("Snapshot is empty; nothing to roll back.");
       }
@@ -46902,9 +47064,9 @@ ${dirty.trim()}`);
         task,
         worktreePath
       });
-      const reportDir = join2(homedir2(), ".agent-workbench", "reports", sanitizePathSegment(project.name));
+      const reportDir = join3(homedir3(), ".agent-workbench", "reports", sanitizePathSegment(project.name));
       await mkdir2(reportDir, { recursive: true });
-      const reportPath = join2(reportDir, `${sanitizePathSegment(task.title)}-${task.id.slice(0, 8)}.md`);
+      const reportPath = join3(reportDir, `${sanitizePathSegment(task.title)}-${task.id.slice(0, 8)}.md`);
       await writeFile2(reportPath, report.markdown, "utf8");
       await this.emitAction(task.id, "export_report", "completed", "Session report exported.", reportPath, {
         reportPath,
@@ -46940,7 +47102,7 @@ ${dirty.trim()}`);
     const resolved = resolveSessionFilePath(worktreePath, filePath);
     try {
       const [buffer, metadata] = await Promise.all([
-        readFile2(resolved.absolutePath),
+        readFile3(resolved.absolutePath),
         stat(resolved.absolutePath)
       ]);
       const mimeType = fileMimeType(resolved.relativePath);
@@ -46955,7 +47117,7 @@ ${dirty.trim()}`);
         updatedAt: metadata.mtime.toISOString()
       };
     } catch (error48) {
-      if (isNodeError2(error48, "ENOENT")) {
+      if (isNodeError3(error48, "ENOENT")) {
         throw new Error(`Session file not found: ${resolved.relativePath}`);
       }
       throw error48;
@@ -46966,7 +47128,7 @@ ${dirty.trim()}`);
     const resolved = resolveSessionFilePath(worktreePath, filePath);
     try {
       const [buffer, metadata] = await Promise.all([
-        readFile2(resolved.absolutePath),
+        readFile3(resolved.absolutePath),
         stat(resolved.absolutePath)
       ]);
       const mimeType = fileMimeType(resolved.relativePath);
@@ -46979,7 +47141,7 @@ ${dirty.trim()}`);
         updatedAt: metadata.mtime.toISOString()
       };
     } catch (error48) {
-      if (isNodeError2(error48, "ENOENT")) {
+      if (isNodeError3(error48, "ENOENT")) {
         throw new Error(`Session file not found: ${resolved.relativePath}`);
       }
       throw error48;
@@ -47021,10 +47183,10 @@ ${dirty.trim()}`);
     if (buffer.byteLength > MAX_SESSION_IMAGE_UPLOAD_BYTES) {
       throw new Error(`Uploaded image is too large. Limit is ${formatBytes(MAX_SESSION_IMAGE_UPLOAD_BYTES)}.`);
     }
-    const uploadDir = join2(homedir2(), ".agent-workbench", "uploads", sanitizePathSegment(project.name || project.id), task.id);
+    const uploadDir = join3(homedir3(), ".agent-workbench", "uploads", sanitizePathSegment(project.name || project.id), task.id);
     await mkdir2(uploadDir, { recursive: true });
     const fileName = `clipboard-${(/* @__PURE__ */ new Date()).toISOString().replaceAll(/[:.]/g, "-")}-${randomUUID().slice(0, 8)}.${imageExtensionForMimeType(mimeType)}`;
-    const absolutePath = join2(uploadDir, fileName);
+    const absolutePath = join3(uploadDir, fileName);
     await writeFile2(absolutePath, buffer);
     await this.emitAction(taskId, "context", "completed", "Screenshot uploaded.", absolutePath, {
       fileName: input.fileName,
@@ -47054,7 +47216,7 @@ ${dirty.trim()}`);
     });
     for (const delayMs of [300, 1e3, 2500]) {
       setTimeout(() => {
-        void this.recordTerminalGeminiSessionCandidate(taskId).catch(() => void 0);
+        void this.recordTerminalNativeSessionCandidate(taskId).catch(() => void 0);
       }, delayMs);
     }
   }
@@ -47068,7 +47230,7 @@ ${dirty.trim()}`);
     });
     const task = await this.options.store.getTask(taskId);
     if (task) {
-      await this.reconcileGeminiSessionLink(task);
+      await this.reconcileNativeSessionLink(task);
     }
   }
   async recordTerminalGeminiSession(taskId, sessionId) {
@@ -47108,6 +47270,52 @@ ${dirty.trim()}`);
     if (task) {
       await this.reconcileGeminiSessionLink(task, { includePending: true });
     }
+  }
+  async recordTerminalCodexSessionCandidate(taskId) {
+    const task = await this.options.store.getTask(taskId);
+    if (!task) {
+      return;
+    }
+    await this.reconcileCodexSessionLink(task);
+  }
+  async recordTerminalCodexSession(taskId, sessionId) {
+    const task = await this.options.store.getTask(taskId);
+    if (!task || !isCodexBackendId(task.backendId)) {
+      return;
+    }
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli") {
+      return;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
+      return;
+    }
+    await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: sessionId,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume"
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Captured Codex resume session.",
+      `Codex CLI reported resumable session ${sessionId}.`,
+      {
+        agentSessionId: sessionId,
+        kind: "codex-session-link",
+        source: "terminal-output"
+      }
+    );
+  }
+  async recordTerminalNativeSessionCandidate(taskId) {
+    const task = await this.options.store.getTask(taskId);
+    if (!task) {
+      return;
+    }
+    await this.reconcileNativeSessionLink(task, { includePending: true });
   }
   async refreshSessionDiff(taskId) {
     const task = await this.options.store.getTask(taskId);
@@ -47187,6 +47395,53 @@ ${dirty.trim()}`);
       }
     );
     return updated;
+  }
+  async reconcileCodexSessionLink(task) {
+    if (!isCodexBackendId(task.backendId) || !task.worktreePath) {
+      return task;
+    }
+    let nativeSession;
+    try {
+      nativeSession = await findLatestCodexProjectSession(task.worktreePath, task.createdAt);
+    } catch {
+      return task;
+    }
+    if (!nativeSession || nativeSession.id === task.agentSessionId) {
+      return task;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== nativeSession.id) {
+      return task;
+    }
+    const updated = await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: nativeSession.id,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume"
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Linked native Codex session.",
+      `Codex session ${nativeSession.id} is now bound to this Workbench session.`,
+      {
+        agentSessionId: nativeSession.id,
+        kind: "codex-session-link",
+        source: "codex-rollout-scan"
+      }
+    );
+    return updated;
+  }
+  async reconcileNativeSessionLink(task, options = {}) {
+    if (isGeminiBackendId(task.backendId)) {
+      return this.reconcileGeminiSessionLink(task, options);
+    }
+    if (isCodexBackendId(task.backendId)) {
+      return this.reconcileCodexSessionLink(task);
+    }
+    return task;
   }
   attachSession(backend, task, project, worktreePath, modeId) {
     if (!backend.startSession) {
@@ -47522,7 +47777,7 @@ ${files.map((file2) => file2.path).join("\n")}`;
     }
     const target = globalMemoryPath();
     await mkdir2(dirname(target), { recursive: true });
-    const existing = await readFile2(target, "utf8").catch(() => "");
+    const existing = await readFile3(target, "utf8").catch(() => "");
     const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
     await appendFile(target, `${prefix}${text}
 `, "utf8");
@@ -47544,8 +47799,8 @@ ${text}`;
   }
   async nativeExtensionsList(worktreePath) {
     const extensions = await listNamedDirectories([
-      { label: "global", path: join2(homedir2(), ".gemini", "extensions") },
-      { label: "project", path: join2(worktreePath, ".gemini", "extensions") }
+      { label: "global", path: join3(homedir3(), ".gemini", "extensions") },
+      { label: "project", path: join3(worktreePath, ".gemini", "extensions") }
     ]);
     if (extensions.length === 0) {
       return "No Gemini extensions found in ~/.gemini/extensions or .gemini/extensions.";
@@ -47671,9 +47926,9 @@ ${worktreeStatus.trim()}` : "Worktree is clean."
     return this.options.git.patch(worktreePath);
   }
   async writePatchFile(project, task, patchText) {
-    const patchDir = join2(homedir2(), ".agent-workbench", "patches", sanitizePathSegment(project.name));
+    const patchDir = join3(homedir3(), ".agent-workbench", "patches", sanitizePathSegment(project.name));
     await mkdir2(patchDir, { recursive: true });
-    const patchPath = join2(patchDir, `${sanitizePathSegment(task.title)}-${task.id.slice(0, 8)}.patch`);
+    const patchPath = join3(patchDir, `${sanitizePathSegment(task.title)}-${task.id.slice(0, 8)}.patch`);
     await writeFile2(patchPath, patchText, "utf8");
     return patchPath;
   }
@@ -47847,12 +48102,12 @@ function parseNativeSlashCommand(prompt) {
   return void 0;
 }
 function globalMemoryPath() {
-  return join2(homedir2(), ".gemini", "GEMINI.md");
+  return join3(homedir3(), ".gemini", "GEMINI.md");
 }
 async function readMemoryFiles(worktreePath) {
   return readExistingTextFiles([
     globalMemoryPath(),
-    join2(worktreePath, "GEMINI.md")
+    join3(worktreePath, "GEMINI.md")
   ]);
 }
 async function readExistingTextFiles(paths) {
@@ -47866,7 +48121,7 @@ async function readExistingTextFiles(paths) {
   });
   const files = await Promise.all(
     uniquePaths.map(async (path) => {
-      const content = await readFile2(path, "utf8").catch(() => void 0);
+      const content = await readFile3(path, "utf8").catch(() => void 0);
       return content === void 0 ? void 0 : { content, path };
     })
   );
@@ -47875,11 +48130,11 @@ async function readExistingTextFiles(paths) {
 async function listNamedDirectories(roots) {
   const entries = await Promise.all(
     roots.map(async (root) => {
-      const dirents = await readdir2(root.path, { withFileTypes: true }).catch(() => []);
+      const dirents = await readdir3(root.path, { withFileTypes: true }).catch(() => []);
       return dirents.filter((dirent) => dirent.isDirectory()).map((dirent) => ({
         label: root.label,
         name: dirent.name,
-        path: join2(root.path, dirent.name)
+        path: join3(root.path, dirent.name)
       }));
     })
   );
@@ -47887,15 +48142,15 @@ async function listNamedDirectories(roots) {
 }
 async function listSkills(worktreePath) {
   const candidates = await listNamedDirectories([
-    { label: "global gemini", path: join2(homedir2(), ".gemini", "skills") },
-    { label: "global agents", path: join2(homedir2(), ".agents", "skills") },
-    { label: "project gemini", path: join2(worktreePath, ".gemini", "skills") },
-    { label: "project agents", path: join2(worktreePath, ".agents", "skills") }
+    { label: "global gemini", path: join3(homedir3(), ".gemini", "skills") },
+    { label: "global agents", path: join3(homedir3(), ".agents", "skills") },
+    { label: "project gemini", path: join3(worktreePath, ".gemini", "skills") },
+    { label: "project agents", path: join3(worktreePath, ".agents", "skills") }
   ]);
   const skills = await Promise.all(
     candidates.map(async (candidate) => {
-      const skillFile = join2(candidate.path, "SKILL.md");
-      const content = await readFile2(skillFile, "utf8").catch(() => void 0);
+      const skillFile = join3(candidate.path, "SKILL.md");
+      const content = await readFile3(skillFile, "utf8").catch(() => void 0);
       if (content === void 0) {
         return void 0;
       }
@@ -47976,8 +48231,8 @@ var SESSION_TREE_IGNORED_DIRS = /* @__PURE__ */ new Set([
 async function listSessionTreeEntries(worktreePath) {
   const entries = [];
   async function walk(relativeDir) {
-    const directoryPath = relativeDir ? join2(worktreePath, relativeDir) : worktreePath;
-    const dirents = await readdir2(directoryPath, { withFileTypes: true });
+    const directoryPath = relativeDir ? join3(worktreePath, relativeDir) : worktreePath;
+    const dirents = await readdir3(directoryPath, { withFileTypes: true });
     dirents.sort((left, right) => {
       if (left.isDirectory() !== right.isDirectory()) {
         return left.isDirectory() ? -1 : 1;
@@ -47985,7 +48240,7 @@ async function listSessionTreeEntries(worktreePath) {
       return left.name.localeCompare(right.name);
     });
     for (const dirent of dirents) {
-      const nextRelativePath = relativeDir ? join2(relativeDir, dirent.name) : dirent.name;
+      const nextRelativePath = relativeDir ? join3(relativeDir, dirent.name) : dirent.name;
       const normalizedPath = nextRelativePath.split(sep).join("/");
       if (dirent.isDirectory()) {
         if (SESSION_TREE_IGNORED_DIRS.has(dirent.name)) {
@@ -48018,7 +48273,7 @@ function resolveSessionFilePath(worktreePath, filePath) {
   if (isAbsolute(trimmed)) {
     throw new Error("Session file paths must be relative to the session worktree.");
   }
-  const absolutePath = resolve2(worktreePath, trimmed);
+  const absolutePath = resolve3(worktreePath, trimmed);
   const relativePath = relative(worktreePath, absolutePath);
   if (!relativePath || relativePath === "." || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
     throw new Error("Session file path escapes the session worktree.");
@@ -48122,7 +48377,7 @@ function isProbablyTextBuffer(buffer) {
   }
   return suspicious / sample.length < 0.02;
 }
-function isNodeError2(error48, code) {
+function isNodeError3(error48, code) {
   return Boolean(error48 && typeof error48 === "object" && "code" in error48 && error48.code === code);
 }
 function summarizeDiff(diffText) {
@@ -48413,6 +48668,12 @@ function agentContextStatusForAttachment(task, resumeMode) {
 function isGeminiBackendId(backendId) {
   return backendId === "gemini" || backendId === "gemini-acp";
 }
+function isCodexBackendId(backendId) {
+  return backendId === "codex";
+}
+function isNativeCliBackendId(backendId) {
+  return isGeminiBackendId(backendId) || isCodexBackendId(backendId);
+}
 function isNativeGeminiCliSession(task) {
   return Boolean(
     task.agentSessionId && isGeminiBackendId(task.backendId) && (task.agentSessionKind === "native-cli" || task.agentSessionKind === void 0 && task.agentSessionOrigin === "imported")
@@ -48631,6 +48892,7 @@ function deliveryActionKind(action) {
     case "context":
     case "recover":
     case "resume":
+    case "terminal":
     case "export_report":
     case "rollback":
     case "set_mode":
@@ -48674,6 +48936,7 @@ function deliveryStatus(event, data) {
     case "context":
     case "recover":
     case "resume":
+    case "terminal":
     case "export_report":
     case "rollback":
     case "set_mode":
@@ -49033,9 +49296,9 @@ function extractToken(input) {
 }
 
 // packages/core/src/storage/localStore.ts
-import { copyFile as copyFile2, mkdir as mkdir3, readFile as readFile3, rename, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
-import { dirname as dirname2, join as join3 } from "node:path";
-import { homedir as homedir3 } from "node:os";
+import { copyFile as copyFile2, mkdir as mkdir3, readFile as readFile4, rename, stat as stat2, writeFile as writeFile3 } from "node:fs/promises";
+import { dirname as dirname2, join as join4 } from "node:path";
+import { homedir as homedir4 } from "node:os";
 function emptyStore() {
   return {
     projects: [],
@@ -49047,7 +49310,7 @@ function emptyStore() {
   };
 }
 function defaultStorePath() {
-  return join3(homedir3(), ".agent-workbench", "store.json");
+  return join4(homedir4(), ".agent-workbench", "store.json");
 }
 var LocalStore = class {
   constructor(path = defaultStorePath()) {
@@ -49062,7 +49325,7 @@ var LocalStore = class {
   async init() {
     await mkdir3(dirname2(this.path), { recursive: true });
     try {
-      const raw = await readFile3(this.path, "utf8");
+      const raw = await readFile4(this.path, "utf8");
       parseStore(raw);
       await this.ensureBackupIfMissing();
     } catch (error48) {
@@ -49173,7 +49436,7 @@ var LocalStore = class {
   }
   async read() {
     await this.initIfNeeded();
-    const raw = await readFile3(this.path, "utf8");
+    const raw = await readFile4(this.path, "utf8");
     try {
       const parsed = parseStore(raw);
       if (parsed.recovered) {
@@ -49203,7 +49466,7 @@ var LocalStore = class {
   }
   async readBackup() {
     try {
-      const raw = await readFile3(this.backupPath, "utf8");
+      const raw = await readFile4(this.backupPath, "utf8");
       return parseStore(raw).data;
     } catch {
       return void 0;
@@ -49218,7 +49481,7 @@ var LocalStore = class {
   }
   async initIfNeeded() {
     try {
-      await readFile3(this.path, "utf8");
+      await readFile4(this.path, "utf8");
     } catch {
       await this.init();
     }
@@ -49326,20 +49589,205 @@ function createWorkbenchStore(path) {
 // apps/server/src/index.ts
 var import_fastify = __toESM(require_fastify(), 1);
 var import_websocket = __toESM(require_websocket2(), 1);
-import { spawn as spawn5 } from "node:child_process";
+import { spawn as spawn6 } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { access, readFile as readFile4, readdir as readdir3 } from "node:fs/promises";
-import { homedir as homedir5, networkInterfaces } from "node:os";
-import { dirname as dirname4, extname as extname2, join as join5, resolve as resolve3 } from "node:path";
+import { access, readFile as readFile5, readdir as readdir4 } from "node:fs/promises";
+import { homedir as homedir6, networkInterfaces } from "node:os";
+import { dirname as dirname4, extname as extname2, join as join6, resolve as resolve4 } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as pty from "node-pty";
 
-// packages/adapters/src/gemini/geminiAcpBackend.ts
+// packages/adapters/src/codex/codexTerminalBackend.ts
 import { spawn as spawn2 } from "node:child_process";
+async function commandResult(command, args) {
+  return new Promise((resolve5) => {
+    const child = spawn2(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", (error48) => {
+      resolve5({ exitCode: 1, stdout, stderr: error48.message });
+    });
+    child.on("close", (exitCode) => {
+      resolve5({ exitCode: exitCode ?? 1, stdout, stderr });
+    });
+  });
+}
+var CodexTerminalBackend = class {
+  constructor(command = process.env.CODEX_CLI_COMMAND ?? "codex") {
+    this.command = command;
+  }
+  command;
+  id = "codex";
+  name = "Codex CLI";
+  async detect() {
+    const result = await commandResult(this.command, ["--version"]);
+    const output = `${result.stdout}${result.stderr}`.trim();
+    return {
+      id: this.id,
+      name: this.name,
+      kind: "codex",
+      available: result.exitCode === 0,
+      command: this.command,
+      version: result.exitCode === 0 ? output : void 0,
+      details: result.exitCode === 0 ? "Codex CLI command detected. Workbench uses native terminal mode." : output || "Codex CLI command not found.",
+      capabilities: ["terminal", "resume", "cancel", "worktree"],
+      profile: codexTerminalProfile()
+    };
+  }
+  async startTask(input) {
+    await emitCodexTerminalNotice(input.task.id, input.emit);
+  }
+  async startSession(input) {
+    await emitCodexTerminalNotice(input.task.id, input.emit);
+  }
+  async sendMessage(input) {
+    await input.emit({
+      type: "session.action",
+      action: "terminal",
+      status: "completed",
+      taskId: input.task.id,
+      title: "Use the native Codex terminal.",
+      details: "Codex is attached through the right-side native terminal so its slash commands, approvals, and resume behavior stay inside Codex CLI.",
+      data: {
+        kind: "terminal"
+      },
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+};
+async function emitCodexTerminalNotice(taskId, emit) {
+  await emit({
+    type: "session.action",
+    action: "terminal",
+    status: "started",
+    taskId,
+    title: "Codex terminal session ready.",
+    details: "Attach the right-side terminal to start Codex in this isolated worktree. Workbench will link the Codex resume id automatically after Codex writes its session metadata.",
+    data: {
+      kind: "terminal",
+      command: "codex"
+    },
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  });
+}
+function codexTerminalProfile() {
+  return {
+    summary: "Native Codex CLI backend. It preserves Codex's full terminal experience while Workbench manages isolated worktrees, review, snapshots, and delivery.",
+    features: [
+      {
+        id: "chat",
+        label: "Chat turns",
+        support: "supported",
+        source: "terminal",
+        description: "The embedded terminal runs Codex CLI directly."
+      },
+      {
+        id: "persistent_session",
+        label: "Persistent session",
+        support: "partial",
+        source: "terminal",
+        description: "Workbench records the native Codex session id and reattaches with codex resume.",
+        limitation: "Structured thread control will require Codex app-server integration."
+      },
+      {
+        id: "slash_commands",
+        label: "Slash commands",
+        support: "supported",
+        source: "terminal",
+        description: "Codex slash commands stay native inside the terminal."
+      },
+      {
+        id: "command_execution",
+        label: "Command execution",
+        support: "supported",
+        source: "terminal",
+        description: "Codex executes commands through its own CLI approval and sandbox flow."
+      },
+      {
+        id: "skills",
+        label: "Skills",
+        support: "supported",
+        source: "terminal",
+        description: "Codex-native skills and plugins work through the CLI."
+      },
+      {
+        id: "approvals",
+        label: "Approvals",
+        support: "partial",
+        source: "terminal",
+        description: "Approvals remain in Codex CLI.",
+        limitation: "Workbench does not yet mirror Codex approvals into its approval panel."
+      },
+      {
+        id: "terminal_fallback",
+        label: "Native terminal",
+        support: "supported",
+        source: "terminal",
+        description: "The right-side terminal is the primary Codex interface."
+      },
+      {
+        id: "worktree_isolation",
+        label: "Worktree isolation",
+        support: "supported",
+        source: "workbench",
+        description: "Codex runs inside the session isolated worktree."
+      },
+      {
+        id: "diff_review",
+        label: "Diff review",
+        support: "supported",
+        source: "workbench",
+        description: "Workbench reviews changes made by Codex in the isolated worktree."
+      }
+    ],
+    commands: [
+      {
+        name: "codex",
+        source: "terminal",
+        support: "supported",
+        description: "Starts a native Codex CLI session in the isolated worktree."
+      },
+      {
+        name: "codex resume <id>",
+        source: "terminal",
+        support: "supported",
+        description: "Reopens the linked native Codex session."
+      }
+    ],
+    skills: [
+      {
+        name: "Codex native skills",
+        source: "terminal",
+        support: "supported",
+        description: "Codex manages its own skills and plugins inside the terminal session."
+      }
+    ],
+    recommendedUse: [
+      "Running Codex and Gemini sessions side by side across the same projects.",
+      "Using Codex's native CLI while keeping Workbench diff, snapshot, apply, and delivery controls."
+    ],
+    limitations: [
+      "Workbench does not yet parse Codex app-server structured events.",
+      "Codex approvals remain inside the terminal.",
+      "Codex must be installed and authenticated separately."
+    ]
+  };
+}
+
+// packages/adapters/src/gemini/geminiAcpBackend.ts
+import { spawn as spawn3 } from "node:child_process";
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { mkdir as mkdir4, writeFile as writeFile4 } from "node:fs/promises";
-import { homedir as homedir4, tmpdir } from "node:os";
-import { dirname as dirname3, join as join4 } from "node:path";
+import { homedir as homedir5, tmpdir } from "node:os";
+import { dirname as dirname3, join as join5 } from "node:path";
 import { Readable, Writable } from "node:stream";
 
 // node_modules/zod/v4/classic/external.js
@@ -49971,7 +50419,7 @@ __export(util_exports, {
   getParsedType: () => getParsedType,
   getSizableOrigin: () => getSizableOrigin,
   hexToUint8Array: () => hexToUint8Array,
-  isObject: () => isObject,
+  isObject: () => isObject2,
   isPlainObject: () => isPlainObject,
   issue: () => issue,
   joinValues: () => joinValues,
@@ -50141,7 +50589,7 @@ function slugify(input) {
 }
 var captureStackTrace = "captureStackTrace" in Error ? Error.captureStackTrace : (..._args) => {
 };
-function isObject(data) {
+function isObject2(data) {
   return typeof data === "object" && data !== null && !Array.isArray(data);
 }
 var allowsEval = cached(() => {
@@ -50157,7 +50605,7 @@ var allowsEval = cached(() => {
   }
 });
 function isPlainObject(o) {
-  if (isObject(o) === false)
+  if (isObject2(o) === false)
     return false;
   const ctor = o.constructor;
   if (ctor === void 0)
@@ -50165,7 +50613,7 @@ function isPlainObject(o) {
   if (typeof ctor !== "function")
     return true;
   const prot = ctor.prototype;
-  if (isObject(prot) === false)
+  if (isObject2(prot) === false)
     return false;
   if (Object.prototype.hasOwnProperty.call(prot, "isPrototypeOf") === false) {
     return false;
@@ -52323,13 +52771,13 @@ var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
     }
     return propValues;
   });
-  const isObject2 = isObject;
+  const isObject3 = isObject2;
   const catchall = def.catchall;
   let value;
   inst._zod.parse = (payload, ctx) => {
     value ?? (value = _normalized.value);
     const input = payload.value;
-    if (!isObject2(input)) {
+    if (!isObject3(input)) {
       payload.issues.push({
         expected: "object",
         code: "invalid_type",
@@ -52427,7 +52875,7 @@ var $ZodObjectJIT = /* @__PURE__ */ $constructor("$ZodObjectJIT", (inst, def) =>
     return (payload, ctx) => fn(shape, payload, ctx);
   };
   let fastpass;
-  const isObject2 = isObject;
+  const isObject3 = isObject2;
   const jit = !globalConfig.jitless;
   const allowsEval2 = allowsEval;
   const fastEnabled = jit && allowsEval2.value;
@@ -52436,7 +52884,7 @@ var $ZodObjectJIT = /* @__PURE__ */ $constructor("$ZodObjectJIT", (inst, def) =>
   inst._zod.parse = (payload, ctx) => {
     value ?? (value = _normalized.value);
     const input = payload.value;
-    if (!isObject2(input)) {
+    if (!isObject3(input)) {
       payload.issues.push({
         expected: "object",
         code: "invalid_type",
@@ -52614,7 +53062,7 @@ var $ZodDiscriminatedUnion = /* @__PURE__ */ $constructor("$ZodDiscriminatedUnio
   });
   inst._zod.parse = (payload, ctx) => {
     const input = payload.value;
-    if (!isObject(input)) {
+    if (!isObject2(input)) {
       payload.issues.push({
         code: "invalid_type",
         expected: "object",
@@ -64403,8 +64851,8 @@ var Connection = class {
     this.#requestHandler = requestHandler;
     this.#notificationHandler = notificationHandler;
     this.#stream = stream;
-    this.#closedPromise = new Promise((resolve4) => {
-      this.#abortController.signal.addEventListener("abort", () => resolve4());
+    this.#closedPromise = new Promise((resolve5) => {
+      this.#abortController.signal.addEventListener("abort", () => resolve5());
     });
     this.#receive();
   }
@@ -64553,8 +65001,8 @@ var Connection = class {
   }
   async sendRequest(method, params) {
     const id = this.#nextRequestId++;
-    const responsePromise = new Promise((resolve4, reject) => {
-      this.#pendingResponses.set(id, { resolve: resolve4, reject });
+    const responsePromise = new Promise((resolve5, reject) => {
+      this.#pendingResponses.set(id, { resolve: resolve5, reject });
     });
     await this.#sendMessage({ jsonrpc: "2.0", id, method, params });
     return responsePromise;
@@ -64648,9 +65096,9 @@ var RequestError = class _RequestError extends Error {
 };
 
 // packages/adapters/src/gemini/geminiAcpBackend.ts
-async function commandResult(command, args) {
-  return new Promise((resolve4) => {
-    const child = spawn2(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+async function commandResult2(command, args) {
+  return new Promise((resolve5) => {
+    const child = spawn3(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -64662,10 +65110,10 @@ async function commandResult(command, args) {
       stderr += chunk;
     });
     child.on("error", (error48) => {
-      resolve4({ exitCode: 1, stdout, stderr: error48.message });
+      resolve5({ exitCode: 1, stdout, stderr: error48.message });
     });
     child.on("close", (exitCode) => {
-      resolve4({ exitCode: exitCode ?? 1, stdout, stderr });
+      resolve5({ exitCode: exitCode ?? 1, stdout, stderr });
     });
   });
 }
@@ -64727,8 +65175,8 @@ async function writeGeminiAcpSystemSettings() {
   const configuredPath = process.env.AGENT_WORKBENCH_GEMINI_SYSTEM_SETTINGS_PATH;
   const candidatePaths = [
     configuredPath,
-    join4(homedir4(), ".agent-workbench", "gemini-acp-system-settings.json"),
-    join4(tmpdir(), "agent-workbench-gemini-acp-system-settings.json")
+    join5(homedir5(), ".agent-workbench", "gemini-acp-system-settings.json"),
+    join5(tmpdir(), "agent-workbench-gemini-acp-system-settings.json")
   ].filter((path) => Boolean(path));
   let lastError;
   for (const settingsPath of candidatePaths) {
@@ -64752,7 +65200,7 @@ var GeminiAcpBackend = class {
   approvals = /* @__PURE__ */ new Map();
   sessions = /* @__PURE__ */ new Map();
   async detect() {
-    const result = await commandResult(this.command, ["--version"]);
+    const result = await commandResult2(this.command, ["--version"]);
     const output = `${result.stdout}${result.stderr}`.trim();
     return {
       id: this.id,
@@ -64806,7 +65254,7 @@ var GeminiAcpBackend = class {
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
     const env = await geminiAcpEnvironment();
-    const child = spawn2(this.command, ["--acp"], {
+    const child = spawn3(this.command, ["--acp"], {
       cwd: input.worktreePath,
       env,
       stdio: ["pipe", "pipe", "pipe"]
@@ -65065,13 +65513,13 @@ var GeminiAcpBackend = class {
       request,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       this.approvals.set(approvalId, {
         emit,
         options: params.options,
         reject,
         request,
-        resolve: resolve4,
+        resolve: resolve5,
         taskId
       });
     });
@@ -65465,10 +65913,10 @@ function approvalRisk(kind) {
 }
 
 // packages/adapters/src/gemini/geminiBackend.ts
-import { spawn as spawn3 } from "node:child_process";
-async function commandResult2(command, args) {
-  return new Promise((resolve4) => {
-    const child = spawn3(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+import { spawn as spawn4 } from "node:child_process";
+async function commandResult3(command, args) {
+  return new Promise((resolve5) => {
+    const child = spawn4(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -65480,10 +65928,10 @@ async function commandResult2(command, args) {
       stderr += chunk;
     });
     child.on("error", (error48) => {
-      resolve4({ exitCode: 1, stdout, stderr: error48.message });
+      resolve5({ exitCode: 1, stdout, stderr: error48.message });
     });
     child.on("close", (exitCode) => {
-      resolve4({ exitCode: exitCode ?? 1, stdout, stderr });
+      resolve5({ exitCode: exitCode ?? 1, stdout, stderr });
     });
   });
 }
@@ -65496,7 +65944,7 @@ var GeminiBackend = class {
   name = "Gemini CLI";
   processes = /* @__PURE__ */ new Map();
   async detect() {
-    const result = await commandResult2(this.command, ["--version"]);
+    const result = await commandResult3(this.command, ["--version"]);
     const output = `${result.stdout}${result.stderr}`.trim();
     return {
       id: this.id,
@@ -65555,7 +66003,7 @@ var GeminiBackend = class {
       },
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
-    const child = spawn3(this.command, args, {
+    const child = spawn4(this.command, args, {
       cwd: input.worktreePath,
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"]
@@ -65599,9 +66047,9 @@ var GeminiBackend = class {
     });
     let exitCode;
     try {
-      exitCode = await new Promise((resolve4, reject) => {
+      exitCode = await new Promise((resolve5, reject) => {
         child.on("error", reject);
-        child.on("close", (code) => resolve4(code ?? 1));
+        child.on("close", (code) => resolve5(code ?? 1));
       });
     } finally {
       this.processes.delete(input.task.id);
@@ -65866,7 +66314,7 @@ function errorMessage(error48) {
 }
 
 // packages/adapters/src/pty/genericPtyBackend.ts
-import { spawn as spawn4 } from "node:child_process";
+import { spawn as spawn5 } from "node:child_process";
 var GenericPtyBackend = class {
   id = "generic-pty";
   name = "Generic CLI Fallback";
@@ -65884,7 +66332,7 @@ var GenericPtyBackend = class {
   }
   async startTask(input) {
     const command = process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash";
-    const child = spawn4(command, [], {
+    const child = spawn5(command, [], {
       cwd: input.worktreePath,
       env: process.env,
       stdio: ["pipe", "pipe", "pipe"]
@@ -65913,9 +66361,9 @@ var GenericPtyBackend = class {
     child.stdin.write(`${input.task.prompt}
 `);
     child.stdin.end();
-    await new Promise((resolve4, reject) => {
+    await new Promise((resolve5, reject) => {
       child.on("error", reject);
-      child.on("close", () => resolve4());
+      child.on("close", () => resolve5());
     });
   }
   async stopTask(taskId) {
@@ -66057,14 +66505,14 @@ async function createWorkbenchServer(options = {}) {
   const port = options.port ?? numberFromEnv2("AGENT_WORKBENCH_PORT", 3030);
   const token = options.token ?? process.env.AGENT_WORKBENCH_TOKEN ?? createLocalToken();
   const storePath = options.storePath ?? process.env.AGENT_WORKBENCH_STORE_PATH;
-  const worktreeRoot = options.worktreeRoot ?? process.env.AGENT_WORKBENCH_WORKTREE_ROOT ?? join5(homedir5(), ".agent-workbench", "worktrees");
+  const worktreeRoot = options.worktreeRoot ?? process.env.AGENT_WORKBENCH_WORKTREE_ROOT ?? join6(homedir6(), ".agent-workbench", "worktrees");
   const eventBus = new EventBus();
   const store = createWorkbenchStore(storePath);
   const orchestrator = new WorkbenchOrchestrator({
     store,
     git: new GitClient(),
     eventBus,
-    backends: [new GeminiAcpBackend(), new GeminiBackend(), new GenericPtyBackend()],
+    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new GenericPtyBackend()],
     worktreeRoot
   });
   await orchestrator.init();
@@ -66109,6 +66557,12 @@ async function createWorkbenchServer(options = {}) {
         label: "Gemini CLI one-shot"
       },
       {
+        command: process.env.CODEX_CLI_COMMAND ?? "codex",
+        envVar: "CODEX_CLI_COMMAND",
+        id: "codex",
+        label: "Codex CLI terminal"
+      },
+      {
         command: process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash",
         envVar: "AGENT_WORKBENCH_FALLBACK_COMMAND",
         id: "generic-pty",
@@ -66133,15 +66587,16 @@ async function createWorkbenchServer(options = {}) {
     }
   }));
   app.get("/api/system/doctor", async () => {
-    const [node, git, gemini, storage] = await Promise.all([
+    const [node, git, gemini, codex, storage] = await Promise.all([
       checkCommand("node", ["-v"]),
       checkCommand("git", ["--version"]),
       checkCommand(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
+      checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
       store.health()
     ]);
     const usesJsonStore = extname2(storage.path).toLowerCase() === ".json";
     return {
-      checks: [node, git, gemini],
+      checks: [node, git, gemini, codex],
       host,
       port,
       storage: {
@@ -66153,14 +66608,15 @@ async function createWorkbenchServer(options = {}) {
       warnings: [
         host === "0.0.0.0" ? "Server is listening on all interfaces. Keep the token private and prefer SSH port forwarding." : void 0,
         usesJsonStore && !storage.backupExists ? "JSON storage backup has not been created yet." : void 0,
-        gemini.ok ? void 0 : "Gemini CLI is not available; structured Gemini ACP sessions will not work until it is installed and authenticated."
+        gemini.ok ? void 0 : "Gemini CLI is not available; structured Gemini ACP sessions will not work until it is installed and authenticated.",
+        codex.ok ? void 0 : "Codex CLI is not available; Codex terminal sessions will not work until it is installed and authenticated."
       ].filter((warning) => Boolean(warning))
     };
   });
   app.get("/", async (request, reply) => {
     const indexPath = await findWebAsset("index.html");
     if (indexPath) {
-      return reply.type("text/html").send(await readFile4(indexPath, "utf8"));
+      return reply.type("text/html").send(await readFile5(indexPath, "utf8"));
     }
     const webHost = process.env.AGENT_WORKBENCH_WEB_PUBLIC_HOST ?? request.hostname.split(":")[0] ?? "127.0.0.1";
     const webPort = numberFromEnv2("AGENT_WORKBENCH_WEB_PORT", 5173);
@@ -66185,7 +66641,7 @@ async function createWorkbenchServer(options = {}) {
   });
   app.get("/assets/*", async (request, reply) => {
     const params = request.params;
-    const assetPath = await findWebAsset(join5("assets", params["*"]));
+    const assetPath = await findWebAsset(join6("assets", params["*"]));
     if (!assetPath) {
       return reply.code(404).send({ error: "Asset not found." });
     }
@@ -66694,7 +67150,7 @@ var TerminalManager = class {
     const rows = clampTerminalSize(size.rows, 8, 80, 32);
     const key = terminalKey(taskId, "agent");
     const existing = this.sessions.get(key);
-    const command = normalizeTerminalCommand(size.command, context.task);
+    const command = normalizeTerminalCommand(size.command, context.task, context.worktreePath);
     const handle = existing && !existing.exited ? existing : this.start(key, "agent", taskId, context.task, context.worktreePath, cols, rows, command);
     handle.subscribers.add(socket);
     if (!handle.recordedStart) {
@@ -66858,7 +67314,7 @@ cwd: ${cwd}\r
     processHandle.onData((data) => {
       appendTerminalBuffer(handle, data);
       if (channel === "agent") {
-        this.captureGeminiSessionFromTerminal(taskId, handle);
+        this.captureNativeSessionFromTerminal(taskId, handle);
         this.scheduleDiffRefresh(taskId, handle);
       }
       this.broadcast(key, { type: channel === "project-shell" ? "shell.output" : "terminal.output", taskId, data });
@@ -66878,7 +67334,7 @@ cwd: ${cwd}\r
 `;
       appendTerminalBuffer(handle, message);
       if (channel === "agent") {
-        this.captureGeminiSessionFromTerminal(taskId, handle);
+        this.captureNativeSessionFromTerminal(taskId, handle);
       }
       this.broadcast(key, { type: channel === "project-shell" ? "shell.output" : "terminal.output", taskId, data: message });
       this.broadcastStatus(taskId, handle);
@@ -66889,6 +67345,13 @@ cwd: ${cwd}\r
     });
     return handle;
   }
+  captureNativeSessionFromTerminal(taskId, handle) {
+    if (handle.task.backendId === "codex") {
+      this.captureCodexSessionFromTerminal(taskId, handle);
+      return;
+    }
+    this.captureGeminiSessionFromTerminal(taskId, handle);
+  }
   captureGeminiSessionFromTerminal(taskId, handle) {
     const sessionId = extractGeminiResumeSessionId(handle.buffer.join(""));
     if (!sessionId || sessionId === handle.reportedGeminiSessionId) {
@@ -66896,6 +67359,14 @@ cwd: ${cwd}\r
     }
     handle.reportedGeminiSessionId = sessionId;
     void this.orchestrator.recordTerminalGeminiSession(taskId, sessionId).catch(() => void 0);
+  }
+  captureCodexSessionFromTerminal(taskId, handle) {
+    const sessionId = extractCodexResumeSessionId(handle.buffer.join(""));
+    if (!sessionId || sessionId === handle.reportedCodexSessionId) {
+      return;
+    }
+    handle.reportedCodexSessionId = sessionId;
+    void this.orchestrator.recordTerminalCodexSession(taskId, sessionId).catch(() => void 0);
   }
   broadcast(key, message) {
     const handle = this.sessions.get(key);
@@ -66944,7 +67415,7 @@ cwd: ${cwd}\r
         this.clearSessionLinkRefresh(handle);
         return;
       }
-      void this.orchestrator.recordTerminalGeminiSessionCandidate(taskId).catch(() => void 0);
+      void this.orchestrator.recordTerminalNativeSessionCandidate(taskId).catch(() => void 0);
     }, 5e3);
   }
   clearSessionLinkRefresh(handle) {
@@ -66954,8 +67425,13 @@ cwd: ${cwd}\r
     }
   }
 };
-function normalizeTerminalCommand(command, task) {
-  const requested = command?.trim() || process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || "gemini";
+function normalizeTerminalCommand(command, task, worktreePath) {
+  const requested = command?.trim() || (task?.backendId === "codex" ? "codex" : process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task));
+  if (task?.backendId === "codex" && isCodexTerminalCommand(requested)) {
+    const sessionId2 = nativeCodexCliSessionId(task);
+    const cd = worktreePath ? ` --cd ${shellQuote(worktreePath)}` : "";
+    return sessionId2 ? `codex resume${cd} ${sessionId2}` : `codex${cd}`;
+  }
   if (!task || task.backendId !== "gemini" && task.backendId !== "gemini-acp") {
     return requested;
   }
@@ -66964,6 +67440,9 @@ function normalizeTerminalCommand(command, task) {
   }
   const sessionId = nativeGeminiCliSessionId(task);
   return sessionId ? `gemini --resume ${sessionId}` : "gemini";
+}
+function defaultTerminalCommand(task) {
+  return task?.backendId === "codex" ? "codex" : "gemini";
 }
 function terminalKey(taskId, channel) {
   return channel === "agent" ? taskId : `${taskId}:project-shell`;
@@ -66979,20 +67458,26 @@ function terminalWorktreeCommand(command, cwd, label = "isolated worktree") {
   ].join("; ");
 }
 function displaySessionId2(task) {
-  return nativeGeminiCliSessionId(task) ?? task.id;
+  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? task.id;
 }
 function nativeGeminiCliSessionId(task) {
   return task.agentSessionId && (task.backendId === "gemini" || task.backendId === "gemini-acp") && (task.agentSessionKind === "native-cli" || task.agentSessionKind === void 0 && task.agentSessionOrigin === "imported") ? task.agentSessionId : void 0;
 }
+function nativeCodexCliSessionId(task) {
+  return task.agentSessionId && task.backendId === "codex" && (task.agentSessionKind === "native-cli" || task.agentSessionKind === void 0 && task.agentSessionOrigin === "imported") ? task.agentSessionId : void 0;
+}
 function isGeminiTerminalCommand(command) {
   return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
+}
+function isCodexTerminalCommand(command) {
+  return command === "codex" || /^codex\s+(resume|--cd|--no-alt-screen)(?:\s|$)/.test(command);
 }
 function shellQuote(value) {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 async function checkCommand(name, args) {
-  return new Promise((resolve4) => {
-    const child = spawn5(name, args, { stdio: ["ignore", "pipe", "pipe"] });
+  return new Promise((resolve5) => {
+    const child = spawn6(name, args, { stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -67003,10 +67488,10 @@ async function checkCommand(name, args) {
       output += chunk;
     });
     child.on("error", (error48) => {
-      resolve4({ name, ok: false, output: error48.message });
+      resolve5({ name, ok: false, output: error48.message });
     });
     child.on("close", (exitCode) => {
-      resolve4({ name, ok: exitCode === 0, output: output.trim() });
+      resolve5({ name, ok: exitCode === 0, output: output.trim() });
     });
   });
 }
@@ -67026,6 +67511,14 @@ function appendTerminalBuffer(handle, data) {
 function extractGeminiResumeSessionId(raw) {
   const text = stripTerminalControl(raw);
   const resumeMatch = text.match(/gemini\s+--resume\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (resumeMatch?.[1]) {
+    return resumeMatch[1];
+  }
+  return void 0;
+}
+function extractCodexResumeSessionId(raw) {
+  const text = stripTerminalControl(raw);
+  const resumeMatch = text.match(/codex\s+resume\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
   if (resumeMatch?.[1]) {
     return resumeMatch[1];
   }
@@ -67070,10 +67563,10 @@ function numberFromEnv2(name, fallback) {
 async function findWebAsset(relativePath) {
   const here = dirname4(fileURLToPath(import.meta.url));
   const candidates = [
-    resolve3(process.cwd(), "apps/web/dist", relativePath),
-    resolve3(here, "../../apps/web/dist", relativePath),
-    resolve3(here, "../../../apps/web/dist", relativePath),
-    resolve3(here, "../../../../apps/web/dist", relativePath)
+    resolve4(process.cwd(), "apps/web/dist", relativePath),
+    resolve4(here, "../../apps/web/dist", relativePath),
+    resolve4(here, "../../../apps/web/dist", relativePath),
+    resolve4(here, "../../../../apps/web/dist", relativePath)
   ];
   for (const candidate of candidates) {
     try {
@@ -67085,17 +67578,17 @@ async function findWebAsset(relativePath) {
   return void 0;
 }
 async function browseDirectories(inputPath) {
-  const directoryPath = resolve3(inputPath?.trim() || homedir5());
+  const directoryPath = resolve4(inputPath?.trim() || homedir6());
   let dirents;
   try {
-    dirents = await readdir3(directoryPath, { withFileTypes: true });
+    dirents = await readdir4(directoryPath, { withFileTypes: true });
   } catch (error48) {
     const message = error48 instanceof Error ? error48.message : String(error48);
     throw new Error(`Cannot open directory ${directoryPath}: ${message}`);
   }
   const entries = await Promise.all(
     dirents.filter((dirent) => dirent.isDirectory()).map(async (dirent) => {
-      const path = join5(directoryPath, dirent.name);
+      const path = join6(directoryPath, dirent.name);
       return {
         gitRepository: await isGitRepositoryDirectory(path),
         hidden: dirent.name.startsWith("."),
@@ -67123,7 +67616,7 @@ async function browseDirectories(inputPath) {
 }
 async function isGitRepositoryDirectory(path) {
   try {
-    await access(join5(path, ".git"));
+    await access(join6(path, ".git"));
     return true;
   } catch {
     return false;
@@ -67222,7 +67715,7 @@ function unique(values) {
 
 // apps/cli/src/index.ts
 var program2 = new Command();
-program2.name("agent-workbench").description("Local-first web workbench for Gemini CLI and coding agents.").version("0.1.0").helpOption("--help", "display help");
+program2.name("agent-workbench").description("Local-first web workbench for Gemini CLI and coding agents.").version(packageVersion()).helpOption("--help", "display help");
 program2.command("serve").description("Start the local web gateway.").helpOption("--help", "display help for command").option("-h, --host <host>", "Host to bind", process.env.AGENT_WORKBENCH_HOST ?? "127.0.0.1").option("-p, --port <port>", "Port to bind", process.env.AGENT_WORKBENCH_PORT ?? "3030").action(async (options) => {
   const port = Number.parseInt(options.port, 10);
   try {
@@ -67254,6 +67747,7 @@ program2.command("doctor").description("Check local prerequisites.").action(asyn
     checkCommand2("node", ["-v"]),
     checkCommand2("git", ["--version"]),
     checkCommand2(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
+    checkCommand2(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
     checkStore(storePath)
   ]);
   for (const check2 of checks) {
@@ -67266,9 +67760,31 @@ program2.command("doctor").description("Check local prerequisites.").action(asyn
   }
 });
 program2.parseAsync(process.argv);
+function packageVersion() {
+  let current = dirname5(fileURLToPath2(import.meta.url));
+  for (let depth = 0; depth < 8; depth += 1) {
+    const packagePath = join7(current, "package.json");
+    if (existsSync(packagePath)) {
+      try {
+        const parsed = JSON.parse(readFileSync(packagePath, "utf8"));
+        if (parsed.name === "@agent-workbench/cli" && typeof parsed.version === "string") {
+          return parsed.version;
+        }
+      } catch {
+        return "0.0.0";
+      }
+    }
+    const parent = dirname5(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return "0.0.0";
+}
 async function checkCommand2(name, args) {
-  return new Promise((resolve4) => {
-    const child = spawn7(name, args, { stdio: ["ignore", "pipe", "pipe"] });
+  return new Promise((resolve5) => {
+    const child = spawn8(name, args, { stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -67279,10 +67795,10 @@ async function checkCommand2(name, args) {
       output += chunk;
     });
     child.on("error", (error48) => {
-      resolve4({ name, ok: false, output: error48.message });
+      resolve5({ name, ok: false, output: error48.message });
     });
     child.on("close", (exitCode) => {
-      resolve4({ name, ok: exitCode === 0, output: output.trim() });
+      resolve5({ name, ok: exitCode === 0, output: output.trim() });
     });
   });
 }

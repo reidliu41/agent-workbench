@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { defaultStorePath } from "@agent-workbench/core";
 import { createWorkbenchServer, type StartedServer } from "@agent-workbench/server";
@@ -10,7 +13,7 @@ const program = new Command();
 program
   .name("agent-workbench")
   .description("Local-first web workbench for Gemini CLI and coding agents.")
-  .version("0.1.0")
+  .version(packageVersion())
   .helpOption("--help", "display help");
 
 program
@@ -51,6 +54,7 @@ program.command("doctor").description("Check local prerequisites.").action(async
     checkCommand("node", ["-v"]),
     checkCommand("git", ["--version"]),
     checkCommand(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
+    checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
     checkStore(storePath),
   ]);
 
@@ -65,6 +69,29 @@ program.command("doctor").description("Check local prerequisites.").action(async
 });
 
 program.parseAsync(process.argv);
+
+function packageVersion(): string {
+  let current = dirname(fileURLToPath(import.meta.url));
+  for (let depth = 0; depth < 8; depth += 1) {
+    const packagePath = join(current, "package.json");
+    if (existsSync(packagePath)) {
+      try {
+        const parsed = JSON.parse(readFileSync(packagePath, "utf8")) as { name?: unknown; version?: unknown };
+        if (parsed.name === "@agent-workbench/cli" && typeof parsed.version === "string") {
+          return parsed.version;
+        }
+      } catch {
+        return "0.0.0";
+      }
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return "0.0.0";
+}
 
 async function checkCommand(name: string, args: string[]): Promise<{ name: string; ok: boolean; output: string }> {
   return new Promise((resolve) => {

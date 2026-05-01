@@ -19,7 +19,7 @@ export type AgentContextStatus =
   | "transcript_fallback"
   | "unknown";
 
-export type BackendKind = "gemini" | "generic-pty" | "external";
+export type BackendKind = "gemini" | "codex" | "generic-pty" | "external";
 
 export type AgentCapability =
   | "terminal"
@@ -278,6 +278,7 @@ export type SessionAction =
   | "resume"
   | "recover"
   | "context"
+  | "terminal"
   | "set_mode"
   | "apply"
   | "discard"

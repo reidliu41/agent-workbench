@@ -8,7 +8,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as pty from "node-pty";
 import { EventBus, GitClient, WorkbenchOrchestrator, createLocalToken, createWorkbenchStore, extractToken } from "@agent-workbench/core";
-import { GeminiAcpBackend, GeminiBackend, GenericPtyBackend } from "@agent-workbench/adapters";
+import { CodexTerminalBackend, GeminiAcpBackend, GeminiBackend, GenericPtyBackend } from "@agent-workbench/adapters";
 import type {
   ClientMessage,
   AddProjectChangesRequest,
@@ -80,7 +80,7 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
     store,
     git: new GitClient(),
     eventBus,
-    backends: [new GeminiAcpBackend(), new GeminiBackend(), new GenericPtyBackend()],
+    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new GenericPtyBackend()],
     worktreeRoot,
   });
   await orchestrator.init();
@@ -132,6 +132,12 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         label: "Gemini CLI one-shot",
       },
       {
+        command: process.env.CODEX_CLI_COMMAND ?? "codex",
+        envVar: "CODEX_CLI_COMMAND",
+        id: "codex",
+        label: "Codex CLI terminal",
+      },
+      {
         command: process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash",
         envVar: "AGENT_WORKBENCH_FALLBACK_COMMAND",
         id: "generic-pty",
@@ -157,15 +163,16 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
   }));
 
   app.get("/api/system/doctor", async (): Promise<SystemDoctorResponse> => {
-    const [node, git, gemini, storage] = await Promise.all([
+    const [node, git, gemini, codex, storage] = await Promise.all([
       checkCommand("node", ["-v"]),
       checkCommand("git", ["--version"]),
       checkCommand(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
+      checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
       store.health(),
     ]);
     const usesJsonStore = extname(storage.path).toLowerCase() === ".json";
     return {
-      checks: [node, git, gemini],
+      checks: [node, git, gemini, codex],
       host,
       port,
       storage: {
@@ -178,6 +185,7 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         host === "0.0.0.0" ? "Server is listening on all interfaces. Keep the token private and prefer SSH port forwarding." : undefined,
         usesJsonStore && !storage.backupExists ? "JSON storage backup has not been created yet." : undefined,
         gemini.ok ? undefined : "Gemini CLI is not available; structured Gemini ACP sessions will not work until it is installed and authenticated.",
+        codex.ok ? undefined : "Codex CLI is not available; Codex terminal sessions will not work until it is installed and authenticated.",
       ].filter((warning): warning is string => Boolean(warning)),
     };
   });
@@ -805,6 +813,7 @@ interface TerminalHandle {
   };
   obsolete?: boolean;
   recordedStart?: boolean;
+  reportedCodexSessionId?: string;
   reportedGeminiSessionId?: string;
   sessionLinkRefresh?: NodeJS.Timeout;
   process: pty.IPty;
@@ -824,7 +833,7 @@ class TerminalManager {
     const rows = clampTerminalSize(size.rows, 8, 80, 32);
     const key = terminalKey(taskId, "agent");
     const existing = this.sessions.get(key);
-    const command = normalizeTerminalCommand(size.command, context.task);
+    const command = normalizeTerminalCommand(size.command, context.task, context.worktreePath);
     const handle = existing && !existing.exited ? existing : this.start(key, "agent", taskId, context.task, context.worktreePath, cols, rows, command);
     handle.subscribers.add(socket);
     if (!handle.recordedStart) {
@@ -997,7 +1006,7 @@ class TerminalManager {
     processHandle.onData((data) => {
       appendTerminalBuffer(handle, data);
       if (channel === "agent") {
-        this.captureGeminiSessionFromTerminal(taskId, handle);
+        this.captureNativeSessionFromTerminal(taskId, handle);
         this.scheduleDiffRefresh(taskId, handle);
       }
       this.broadcast(key, { type: channel === "project-shell" ? "shell.output" : "terminal.output", taskId, data });
@@ -1015,7 +1024,7 @@ class TerminalManager {
       const message = `\r\n[process exited with code ${exitCode}]\r\n`;
       appendTerminalBuffer(handle, message);
       if (channel === "agent") {
-        this.captureGeminiSessionFromTerminal(taskId, handle);
+        this.captureNativeSessionFromTerminal(taskId, handle);
       }
       this.broadcast(key, { type: channel === "project-shell" ? "shell.output" : "terminal.output", taskId, data: message });
       this.broadcastStatus(taskId, handle);
@@ -1028,6 +1037,14 @@ class TerminalManager {
     return handle;
   }
 
+  private captureNativeSessionFromTerminal(taskId: string, handle: TerminalHandle): void {
+    if (handle.task.backendId === "codex") {
+      this.captureCodexSessionFromTerminal(taskId, handle);
+      return;
+    }
+    this.captureGeminiSessionFromTerminal(taskId, handle);
+  }
+
   private captureGeminiSessionFromTerminal(taskId: string, handle: TerminalHandle): void {
     const sessionId = extractGeminiResumeSessionId(handle.buffer.join(""));
     if (!sessionId || sessionId === handle.reportedGeminiSessionId) {
@@ -1035,6 +1052,15 @@ class TerminalManager {
     }
     handle.reportedGeminiSessionId = sessionId;
     void this.orchestrator.recordTerminalGeminiSession(taskId, sessionId).catch(() => undefined);
+  }
+
+  private captureCodexSessionFromTerminal(taskId: string, handle: TerminalHandle): void {
+    const sessionId = extractCodexResumeSessionId(handle.buffer.join(""));
+    if (!sessionId || sessionId === handle.reportedCodexSessionId) {
+      return;
+    }
+    handle.reportedCodexSessionId = sessionId;
+    void this.orchestrator.recordTerminalCodexSession(taskId, sessionId).catch(() => undefined);
   }
 
   private broadcast(key: string, message: ServerMessage): void {
@@ -1089,7 +1115,7 @@ class TerminalManager {
         this.clearSessionLinkRefresh(handle);
         return;
       }
-      void this.orchestrator.recordTerminalGeminiSessionCandidate(taskId).catch(() => undefined);
+      void this.orchestrator.recordTerminalNativeSessionCandidate(taskId).catch(() => undefined);
     }, 5000);
   }
 
@@ -1101,8 +1127,17 @@ class TerminalManager {
   }
 }
 
-function normalizeTerminalCommand(command?: string, task?: Task): string {
-  const requested = command?.trim() || process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || "gemini";
+function normalizeTerminalCommand(command?: string, task?: Task, worktreePath?: string): string {
+  const requested =
+    command?.trim() ||
+    (task?.backendId === "codex"
+      ? "codex"
+      : process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task));
+  if (task?.backendId === "codex" && isCodexTerminalCommand(requested)) {
+    const sessionId = nativeCodexCliSessionId(task);
+    const cd = worktreePath ? ` --cd ${shellQuote(worktreePath)}` : "";
+    return sessionId ? `codex resume${cd} ${sessionId}` : `codex${cd}`;
+  }
   if (!task || (task.backendId !== "gemini" && task.backendId !== "gemini-acp")) {
     return requested;
   }
@@ -1111,6 +1146,10 @@ function normalizeTerminalCommand(command?: string, task?: Task): string {
   }
   const sessionId = nativeGeminiCliSessionId(task);
   return sessionId ? `gemini --resume ${sessionId}` : "gemini";
+}
+
+function defaultTerminalCommand(task?: Task): string {
+  return task?.backendId === "codex" ? "codex" : "gemini";
 }
 
 function terminalKey(taskId: string, channel: "agent" | "project-shell"): string {
@@ -1129,7 +1168,7 @@ function terminalWorktreeCommand(command: string, cwd: string, label = "isolated
 }
 
 function displaySessionId(task: Task): string {
-  return nativeGeminiCliSessionId(task) ?? task.id;
+  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? task.id;
 }
 
 function nativeGeminiCliSessionId(task: Task): string | undefined {
@@ -1140,8 +1179,20 @@ function nativeGeminiCliSessionId(task: Task): string | undefined {
     : undefined;
 }
 
+function nativeCodexCliSessionId(task: Task): string | undefined {
+  return task.agentSessionId &&
+    task.backendId === "codex" &&
+    (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported"))
+    ? task.agentSessionId
+    : undefined;
+}
+
 function isGeminiTerminalCommand(command: string): boolean {
   return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
+}
+
+function isCodexTerminalCommand(command: string): boolean {
+  return command === "codex" || /^codex\s+(resume|--cd|--no-alt-screen)(?:\s|$)/.test(command);
 }
 
 function shellQuote(value: string): string {
@@ -1187,6 +1238,15 @@ function appendTerminalBuffer(handle: TerminalHandle, data: string): void {
 function extractGeminiResumeSessionId(raw: string): string | undefined {
   const text = stripTerminalControl(raw);
   const resumeMatch = text.match(/gemini\s+--resume\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (resumeMatch?.[1]) {
+    return resumeMatch[1];
+  }
+  return undefined;
+}
+
+function extractCodexResumeSessionId(raw: string): string | undefined {
+  const text = stripTerminalControl(raw);
+  const resumeMatch = text.match(/codex\s+resume\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
   if (resumeMatch?.[1]) {
     return resumeMatch[1];
   }

@@ -74,7 +74,9 @@ export function TerminalPanel({
     speechRecognitionConstructor() ? "idle" : "unsupported",
   );
   const linkedGemini = linkedGeminiSessionId(task);
+  const linkedCodex = linkedCodexSessionId(task);
   const waitingForGeminiSession = isGeminiWorkbenchSession(task) && !linkedGemini;
+  const waitingForCodexSession = isCodexWorkbenchSession(task) && !linkedCodex;
 
   useEffect(() => {
     setActiveCommand(undefined);
@@ -83,7 +85,7 @@ export function TerminalPanel({
     setClipboardStatus(undefined);
     setIsUploadingClipboardImage(false);
     autoAttachAttemptedRef.current = false;
-    let nextSelectedCommand = "gemini";
+    let nextSelectedCommand = defaultTerminalCommandForTask(task);
     let nextCustomCommand = "";
     if (task) {
       const stored = window.localStorage.getItem(terminalCommandStorageKey(task.id));
@@ -541,9 +543,13 @@ export function TerminalPanel({
     <div className="terminal-panel">
       <div className="terminal-toolbar">
         <div className="terminal-toolbar-copy">
-          <strong>{linkedGemini ? `Gemini ${linkedGemini}` : activeCommand ? activeCommand : "CLI terminal"}</strong>
+          <strong>{linkedGemini ? `Gemini ${linkedGemini}` : linkedCodex ? `Codex ${linkedCodex}` : activeCommand ? activeCommand : "CLI terminal"}</strong>
           <small>
-            {linkedGemini ? "Resumes the bound native Gemini session." : task.worktreePath ?? "No worktree"}
+            {linkedGemini
+              ? "Resumes the bound native Gemini session."
+              : linkedCodex
+                ? "Resumes the bound native Codex session."
+                : task.worktreePath ?? "No worktree"}
           </small>
         </div>
         <span className={`terminal-status ${status}`}>{status}</span>
@@ -570,10 +576,22 @@ export function TerminalPanel({
               gemini --resume {truncateMiddle(linkedGemini, 18)}
             </p>
           </>
+        ) : linkedCodex ? (
+          <>
+            <strong className="terminal-command-label">Session</strong>
+            <p className="terminal-command-note" title={`codex resume ${linkedCodex}`}>
+              codex resume {truncateMiddle(linkedCodex, 18)}
+            </p>
+          </>
         ) : waitingForGeminiSession ? (
           <>
             <strong className="terminal-command-label">Session</strong>
             <p className="terminal-command-note">Attach starts `gemini` once. After Gemini creates a native session id, Workbench links it and future attaches use resume.</p>
+          </>
+        ) : waitingForCodexSession ? (
+          <>
+            <strong className="terminal-command-label">Session</strong>
+            <p className="terminal-command-note">Attach starts `codex` once. After Codex writes its native session metadata, Workbench links it and future attaches use resume.</p>
           </>
         ) : (
           <>
@@ -619,7 +637,11 @@ export function TerminalPanel({
         </button>
         {clipboardStatus ? <small className="terminal-clipboard-status">{clipboardStatus}</small> : null}
       </div>
-      <div className={`terminal-container ${isUploadingClipboardImage ? "uploading" : ""}`} ref={containerRef} />
+      <div
+        className={`terminal-container ${isUploadingClipboardImage ? "uploading" : ""}`}
+        onMouseDown={() => terminalRef.current?.focus()}
+        ref={containerRef}
+      />
     </div>
   );
 }
@@ -639,12 +661,21 @@ function resolvedTerminalCommand(selectedCommand: string, customCommand: string,
   if (selectedCommand === "gemini" && linkedResume) {
     return linkedResume;
   }
+  const linkedCodex = linkedCodexResumeCommand(task);
+  if (selectedCommand === "codex" && linkedCodex) {
+    return linkedCodex;
+  }
   return selectedCommand === "custom" ? customCommand.trim() : selectedCommand.trim();
 }
 
 function linkedGeminiResumeCommand(task?: Task): string | undefined {
   const sessionId = linkedGeminiSessionId(task);
   return sessionId ? `gemini --resume ${sessionId}` : undefined;
+}
+
+function linkedCodexResumeCommand(task?: Task): string | undefined {
+  const sessionId = linkedCodexSessionId(task);
+  return sessionId ? `codex resume ${sessionId}` : undefined;
 }
 
 function linkedGeminiSessionId(task?: Task): string | undefined {
@@ -658,6 +689,23 @@ function linkedGeminiSessionId(task?: Task): string | undefined {
     return task.agentSessionId;
   }
   return undefined;
+}
+
+function linkedCodexSessionId(task?: Task): string | undefined {
+  if (!task?.agentSessionId) {
+    return undefined;
+  }
+  if (task.backendId !== "codex") {
+    return undefined;
+  }
+  if (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported")) {
+    return task.agentSessionId;
+  }
+  return undefined;
+}
+
+function defaultTerminalCommandForTask(task?: Task): string {
+  return task?.backendId === "codex" ? "codex" : "gemini";
 }
 
 function truncateMiddle(value: string, maxLength: number): string {
@@ -733,6 +781,10 @@ function isGeminiCliCommand(command: string): boolean {
 
 function isGeminiWorkbenchSession(task?: Task): boolean {
   return task?.backendId === "gemini" || task?.backendId === "gemini-acp";
+}
+
+function isCodexWorkbenchSession(task?: Task): boolean {
+  return task?.backendId === "codex";
 }
 
 function installTerminalPasteListener(container: HTMLDivElement, onPaste: (event: ClipboardEvent) => void): () => void {

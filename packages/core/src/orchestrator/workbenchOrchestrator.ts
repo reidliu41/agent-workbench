@@ -53,6 +53,9 @@ import type {
 import { EventBus } from "../events/eventBus.js";
 import { GitClient } from "../git/gitClient.js";
 import {
+  findLatestCodexProjectSession,
+} from "../integrations/codexSessions.js";
+import {
   bridgeGeminiSessionToWorktree,
   listGeminiProjectSessionCandidates,
   listGeminiProjectSessions,
@@ -436,8 +439,8 @@ export class WorkbenchOrchestrator {
       prompt: "",
       status: "starting",
       agentSessionId: input.agentSessionId,
-      agentSessionKind: input.agentSessionId && isGeminiBackendId(backendId) ? "native-cli" : undefined,
-      agentSessionOrigin: isGeminiBackendId(backendId) ? (input.agentSessionId ? "imported" : "new") : undefined,
+      agentSessionKind: input.agentSessionId && isNativeCliBackendId(backendId) ? "native-cli" : undefined,
+      agentSessionOrigin: isNativeCliBackendId(backendId) ? (input.agentSessionId ? "imported" : "new") : undefined,
       baseBranch,
       modeId: input.modeId,
       worktreePath,
@@ -1941,7 +1944,7 @@ export class WorkbenchOrchestrator {
     });
     for (const delayMs of [300, 1000, 2500]) {
       setTimeout(() => {
-        void this.recordTerminalGeminiSessionCandidate(taskId).catch(() => undefined);
+        void this.recordTerminalNativeSessionCandidate(taskId).catch(() => undefined);
       }, delayMs);
     }
   }
@@ -1956,7 +1959,7 @@ export class WorkbenchOrchestrator {
     });
     const task = await this.options.store.getTask(taskId);
     if (task) {
-      await this.reconcileGeminiSessionLink(task);
+      await this.reconcileNativeSessionLink(task);
     }
   }
 
@@ -1999,6 +2002,56 @@ export class WorkbenchOrchestrator {
     if (task) {
       await this.reconcileGeminiSessionLink(task, { includePending: true });
     }
+  }
+
+  async recordTerminalCodexSessionCandidate(taskId: string): Promise<void> {
+    const task = await this.options.store.getTask(taskId);
+    if (!task) {
+      return;
+    }
+    await this.reconcileCodexSessionLink(task);
+  }
+
+  async recordTerminalCodexSession(taskId: string, sessionId: string): Promise<void> {
+    const task = await this.options.store.getTask(taskId);
+    if (!task || !isCodexBackendId(task.backendId)) {
+      return;
+    }
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli") {
+      return;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
+      return;
+    }
+
+    await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: sessionId,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume",
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Captured Codex resume session.",
+      `Codex CLI reported resumable session ${sessionId}.`,
+      {
+        agentSessionId: sessionId,
+        kind: "codex-session-link",
+        source: "terminal-output",
+      },
+    );
+  }
+
+  async recordTerminalNativeSessionCandidate(taskId: string): Promise<void> {
+    const task = await this.options.store.getTask(taskId);
+    if (!task) {
+      return;
+    }
+    await this.reconcileNativeSessionLink(task, { includePending: true });
   }
 
   async refreshSessionDiff(taskId: string): Promise<DiffSnapshot | undefined> {
@@ -2088,6 +2141,57 @@ export class WorkbenchOrchestrator {
       },
     );
     return updated;
+  }
+
+  private async reconcileCodexSessionLink(task: Task): Promise<Task> {
+    if (!isCodexBackendId(task.backendId) || !task.worktreePath) {
+      return task;
+    }
+
+    let nativeSession;
+    try {
+      nativeSession = await findLatestCodexProjectSession(task.worktreePath, task.createdAt);
+    } catch {
+      return task;
+    }
+    if (!nativeSession || nativeSession.id === task.agentSessionId) {
+      return task;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== nativeSession.id) {
+      return task;
+    }
+
+    const updated = await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: nativeSession.id,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume",
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Linked native Codex session.",
+      `Codex session ${nativeSession.id} is now bound to this Workbench session.`,
+      {
+        agentSessionId: nativeSession.id,
+        kind: "codex-session-link",
+        source: "codex-rollout-scan",
+      },
+    );
+    return updated;
+  }
+
+  private async reconcileNativeSessionLink(task: Task, options: { includePending?: boolean } = {}): Promise<Task> {
+    if (isGeminiBackendId(task.backendId)) {
+      return this.reconcileGeminiSessionLink(task, options);
+    }
+    if (isCodexBackendId(task.backendId)) {
+      return this.reconcileCodexSessionLink(task);
+    }
+    return task;
   }
 
   private attachSession(backend: AgentBackend, task: Task, project: Project, worktreePath: string, modeId?: string): Promise<void> | undefined {
@@ -3527,6 +3631,14 @@ function isGeminiBackendId(backendId: string): boolean {
   return backendId === "gemini" || backendId === "gemini-acp";
 }
 
+function isCodexBackendId(backendId: string): boolean {
+  return backendId === "codex";
+}
+
+function isNativeCliBackendId(backendId: string): boolean {
+  return isGeminiBackendId(backendId) || isCodexBackendId(backendId);
+}
+
 function isNativeGeminiCliSession(task: Task): boolean {
   return Boolean(
     task.agentSessionId &&
@@ -3778,6 +3890,7 @@ function deliveryActionKind(action: SessionAction): SessionOverview["latestDeliv
     case "context":
     case "recover":
     case "resume":
+    case "terminal":
     case "export_report":
     case "rollback":
     case "set_mode":
@@ -3822,6 +3935,7 @@ function deliveryStatus(event: Extract<AgentEvent, { type: "session.action" }>, 
     case "context":
     case "recover":
     case "resume":
+    case "terminal":
     case "export_report":
     case "rollback":
     case "set_mode":
