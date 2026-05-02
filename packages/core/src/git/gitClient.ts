@@ -177,6 +177,17 @@ export class GitClient {
     }
   }
 
+  async applyPatchDirect(cwd: string, patchText: string): Promise<void> {
+    if (!patchText.trim()) {
+      return;
+    }
+
+    const result = await this.runCommand("git", ["apply", "--whitespace=nowarn"], cwd, patchText);
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr.trim() || "Failed to apply patch.");
+    }
+  }
+
   async applyPatchUnsafe(cwd: string, patchText: string): Promise<void> {
     if (!patchText.trim()) {
       throw new Error("No patch content to apply.");
@@ -205,6 +216,17 @@ export class GitClient {
     }
 
     const result = await this.runCommand("git", ["apply", "--check", "--3way", "--whitespace=nowarn"], cwd, patchText);
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr.trim() || "Patch does not apply cleanly.");
+    }
+  }
+
+  async checkApplyPatchDirect(cwd: string, patchText: string): Promise<void> {
+    if (!patchText.trim()) {
+      return;
+    }
+
+    const result = await this.runCommand("git", ["apply", "--check", "--whitespace=nowarn"], cwd, patchText);
     if (result.exitCode !== 0) {
       throw new Error(result.stderr.trim() || "Patch does not apply cleanly.");
     }

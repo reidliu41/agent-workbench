@@ -43,10 +43,16 @@ interface SpeechRecognitionLike {
 
 export function TerminalPanel({
   autoAttach = false,
+  isProjected = false,
+  onProjectionLinesChange,
+  onToggleProjection,
   task,
   token,
 }: {
   autoAttach?: boolean;
+  isProjected?: boolean;
+  onProjectionLinesChange?: (lines: string[]) => void;
+  onToggleProjection?: () => void;
   task?: Task;
   token: string;
 }): React.JSX.Element {
@@ -57,6 +63,7 @@ export function TerminalPanel({
   const resizeObserverRef = useRef<ResizeObserver | undefined>(undefined);
   const socketRef = useRef<WebSocket | undefined>(undefined);
   const pasteListenerCleanupRef = useRef<(() => void) | undefined>(undefined);
+  const projectionUpdateTimerRef = useRef<number | undefined>(undefined);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | undefined>(undefined);
   const suppressInputRef = useRef(false);
   const terminalRef = useRef<Terminal | undefined>(undefined);
@@ -91,7 +98,7 @@ export function TerminalPanel({
     autoAttachAttemptedRef.current = false;
     let nextSelectedCommand = defaultTerminalCommandForTask(task);
     let nextCustomCommand = "";
-    if (task) {
+    if (task && !fixedTerminalCommandForTask(task)) {
       const stored = window.localStorage.getItem(terminalCommandStorageKey(task.id));
       if (stored && terminalCommandOptions.some((option) => option.value === stored)) {
         nextSelectedCommand = stored;
@@ -117,6 +124,12 @@ export function TerminalPanel({
     return () => window.clearTimeout(attachTimer);
   }, [autoAttach, customCommand, selectedCommand, task?.id]);
 
+  useEffect(() => {
+    if (isProjected && terminalRef.current) {
+      onProjectionLinesChange?.(projectionLinesFromTerminal(terminalRef.current));
+    }
+  }, [isProjected, onProjectionLinesChange]);
+
   function cleanupTerminal(): void {
     const socket = socketRef.current;
     if (replaySettleTimerRef.current !== undefined) {
@@ -128,6 +141,10 @@ export function TerminalPanel({
     if (voiceRestartTimerRef.current !== undefined) {
       window.clearTimeout(voiceRestartTimerRef.current);
       voiceRestartTimerRef.current = undefined;
+    }
+    if (projectionUpdateTimerRef.current !== undefined) {
+      window.clearTimeout(projectionUpdateTimerRef.current);
+      projectionUpdateTimerRef.current = undefined;
     }
     inputDisposableRef.current?.dispose();
     pasteListenerCleanupRef.current?.();
@@ -142,7 +159,21 @@ export function TerminalPanel({
     speechRecognitionRef.current = undefined;
     terminalRef.current = undefined;
     fitRef.current = undefined;
+    onProjectionLinesChange?.([]);
     setVoiceStatus(speechRecognitionConstructor() ? "idle" : "unsupported");
+  }
+
+  function scheduleProjectionUpdate(): void {
+    if (!onProjectionLinesChange || projectionUpdateTimerRef.current !== undefined) {
+      return;
+    }
+    projectionUpdateTimerRef.current = window.setTimeout(() => {
+      projectionUpdateTimerRef.current = undefined;
+      const terminal = terminalRef.current;
+      if (terminal) {
+        onProjectionLinesChange(projectionLinesFromTerminal(terminal));
+      }
+    }, 80);
   }
 
   function armReplaySettleTimer(): void {
@@ -202,6 +233,7 @@ export function TerminalPanel({
           taskId: task.id,
           type: "terminal.input",
         }));
+        scheduleProjectionUpdate();
       }
     });
 
@@ -296,7 +328,8 @@ export function TerminalPanel({
         if (isClaudeCliCommand(command)) {
           setClaudeTrustPromptVisible((visible) => detectClaudeTrustPrompt(output) || visible);
         }
-        terminalParts.terminal.write(normalizeTerminalOutput(output, command));
+        const normalized = normalizeTerminalOutput(output, command);
+        terminalParts.terminal.write(normalized, scheduleProjectionUpdate);
       }
       if (parsed.type === "terminal.status" && "terminal" in parsed && parsed.terminal) {
         if (suppressInputRef.current) {
@@ -307,7 +340,8 @@ export function TerminalPanel({
         setActiveCommand(parsed.terminal.command ?? command);
       }
       if (parsed.type === "error" && "error" in parsed && parsed.error) {
-        terminalParts.terminal.write(`\r\n[Workbench error] ${parsed.error}\r\n`);
+        const errorOutput = `\r\n[Workbench error] ${parsed.error}\r\n`;
+        terminalParts.terminal.write(errorOutput, scheduleProjectionUpdate);
         setStatus("error");
       }
     });
@@ -528,6 +562,7 @@ export function TerminalPanel({
 
   function clearTerminal(): void {
     terminalRef.current?.clear();
+    onProjectionLinesChange?.([]);
     const socket = socketRef.current;
     if (task && socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ taskId: task.id, type: "terminal.clear" }));
@@ -649,6 +684,16 @@ export function TerminalPanel({
             )}
           </>
         )}
+        {onToggleProjection ? (
+          <button
+            className="secondary compact-button"
+            onClick={onToggleProjection}
+            title={isProjected ? "Return terminal to the side panel" : "Show this terminal in the main workspace"}
+            type="button"
+          >
+            {isProjected ? "Close split" : "Split"}
+          </button>
+        ) : null}
         <button
           className={`secondary compact-button terminal-voice-button ${voiceStatus === "listening" ? "listening" : ""}`}
           disabled={voiceStatus === "unsupported" || !terminalRef.current || socketRef.current?.readyState !== WebSocket.OPEN}
@@ -774,13 +819,20 @@ function linkedClaudeSessionId(task?: Task): string | undefined {
 }
 
 function defaultTerminalCommandForTask(task?: Task): string {
+  return fixedTerminalCommandForTask(task) ?? "gemini";
+}
+
+function fixedTerminalCommandForTask(task?: Task): string | undefined {
   if (task?.backendId === "codex") {
     return "codex";
   }
   if (task?.backendId === "claude") {
     return "claude";
   }
-  return "gemini";
+  if (task?.backendId === "gemini" || task?.backendId === "gemini-acp") {
+    return "gemini";
+  }
+  return undefined;
 }
 
 function truncateMiddle(value: string, maxLength: number): string {
@@ -792,62 +844,93 @@ function truncateMiddle(value: string, maxLength: number): string {
 }
 
 function normalizeTerminalOutput(data: string, command: string): string {
-  return isGeminiCliCommand(command) ? normalizeGeminiSemanticBackgrounds(data) : data;
+  return isGeminiCliCommand(command) ? removeGeminiBackgroundColors(data) : data;
 }
 
-function normalizeGeminiSemanticBackgrounds(data: string): string {
+function projectionLinesFromTerminal(terminal: Terminal): string[] {
+  const buffer = terminal.buffer.active;
+  const start = Math.max(0, buffer.length - 700);
+  const lines: string[] = [];
+  let previousBlank = false;
+
+  for (let index = start; index < buffer.length; index += 1) {
+    const line = buffer.getLine(index)?.translateToString(true).replace(/\s+$/g, "") ?? "";
+    if (isTerminalProjectionChromeLine(line)) {
+      continue;
+    }
+    const blank = line.trim().length === 0;
+    if (blank && previousBlank) {
+      continue;
+    }
+    lines.push(line);
+    previousBlank = blank;
+  }
+
+  while (lines.length > 0 && !lines[0]?.trim()) {
+    lines.shift();
+  }
+  return lines.slice(-500);
+}
+
+function isTerminalProjectionChromeLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (/^[─━═▄▀\s]+$/.test(trimmed)) {
+    return true;
+  }
+  if (trimmed.includes("? for shortcuts")) {
+    return true;
+  }
+  if (trimmed.includes("Shift+Tab to accept edits")) {
+    return true;
+  }
+  if (trimmed.includes("Type your message or @path/to/file")) {
+    return true;
+  }
+  if (/^\d+\s+GEMINI\.md files?/.test(trimmed)) {
+    return true;
+  }
+  if (/\bworkspace\b/.test(trimmed) && /\bbranch\b/.test(trimmed) && /\bsandbox\b/.test(trimmed)) {
+    return true;
+  }
+  if (trimmed.startsWith("~/.agent-") && trimmed.includes(" no sandbox ")) {
+    return true;
+  }
+  return false;
+}
+
+function removeGeminiBackgroundColors(data: string): string {
   return data.replace(/\x1b\[([0-9;]*)m/g, (sequence, parameters: string) => {
-    const remapped = remapGeminiSemanticBackgroundParameters(parameters);
-    return remapped === parameters ? sequence : `\x1b[${remapped}m`;
+    const normalized = removeSgrBackgroundParameters(parameters);
+    return normalized === parameters ? sequence : `\x1b[${normalized || "49"}m`;
   });
 }
 
-function remapGeminiSemanticBackgroundParameters(parameters: string): string {
+function removeSgrBackgroundParameters(parameters: string): string {
   if (!parameters) {
     return parameters;
   }
-
   const parts = parameters.split(";");
-  const remapped: string[] = [];
+  const kept: string[] = [];
   for (let index = 0; index < parts.length; index += 1) {
     const code = parts[index] ?? "";
     const mode = parts[index + 1];
-    if ((code === "38" || code === "48") && mode === "2") {
-      const rgb = parts.slice(index + 2, index + 5);
-      if (isGeminiPanelRgb(rgb)) {
-        remapped.push(code, "2", "28", "34", "36");
-        index += 4;
-        continue;
-      }
+    if (code === "48" && mode === "2") {
+      index += 4;
+      continue;
     }
-    if ((code === "38" || code === "48") && mode === "5" && isGeminiPanelColorIndex(parts[index + 2])) {
-      remapped.push(code, "2", "28", "34", "36");
+    if (code === "48" && mode === "5") {
       index += 2;
       continue;
     }
-    if (code === "47" || code === "107") {
-      remapped.push("48", "2", "28", "34", "36");
+    if ((Number(code) >= 40 && Number(code) <= 47) || (Number(code) >= 100 && Number(code) <= 107)) {
       continue;
     }
-    remapped.push(code);
+    kept.push(code);
   }
-  return remapped.join(";");
-}
-
-function isGeminiPanelRgb(rgb: string[]): boolean {
-  if (rgb.length !== 3) {
-    return false;
-  }
-  const [red, green, blue] = rgb.map((part) => Number.parseInt(part, 10));
-  return (
-    (red === 95 && green === 95 && blue === 95) ||
-    (red === 250 && green === 250 && blue === 250) ||
-    (red === 228 && green === 228 && blue === 228)
-  );
-}
-
-function isGeminiPanelColorIndex(value: string | undefined): boolean {
-  return value === "59" || value === "253" || value === "254" || value === "255";
+  return kept.join(";");
 }
 
 function isGeminiCliCommand(command: string): boolean {

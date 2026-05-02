@@ -44694,6 +44694,15 @@ var GitClient = class {
       throw new Error(result.stderr.trim() || "Failed to apply patch.");
     }
   }
+  async applyPatchDirect(cwd, patchText) {
+    if (!patchText.trim()) {
+      return;
+    }
+    const result = await this.runCommand("git", ["apply", "--whitespace=nowarn"], cwd, patchText);
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr.trim() || "Failed to apply patch.");
+    }
+  }
   async applyPatchUnsafe(cwd, patchText) {
     if (!patchText.trim()) {
       throw new Error("No patch content to apply.");
@@ -44717,6 +44726,15 @@ var GitClient = class {
       throw new Error("No patch content to apply.");
     }
     const result = await this.runCommand("git", ["apply", "--check", "--3way", "--whitespace=nowarn"], cwd, patchText);
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr.trim() || "Patch does not apply cleanly.");
+    }
+  }
+  async checkApplyPatchDirect(cwd, patchText) {
+    if (!patchText.trim()) {
+      return;
+    }
+    const result = await this.runCommand("git", ["apply", "--check", "--whitespace=nowarn"], cwd, patchText);
     if (result.exitCode !== 0) {
       throw new Error(result.stderr.trim() || "Patch does not apply cleanly.");
     }
@@ -45888,11 +45906,29 @@ var WorkbenchOrchestrator = class {
         });
         const stuck = task.status === "running" && (idleMs > 5 * 60 * 1e3 || orphanedRunning);
         const latestDelivery = summarizeLatestDelivery(events);
-        const stage = overviewStage(task, waitingApprovals, stuck, conflictFiles, terminal);
-        const health = overviewHealth(task, stage, waitingApprovals, conflictFiles, stuck);
+        const filesChanged = diff?.summary.filesChanged ?? 0;
+        const stage = overviewStage(task, waitingApprovals, stuck, conflictFiles, terminal, {
+          activeTurn,
+          filesChanged,
+          latestDelivery,
+          queuedTurns,
+          snapshots: snapshots.length
+        });
+        const state = overviewState(task, {
+          activeTurn,
+          conflictFiles,
+          filesChanged,
+          latestDelivery,
+          queuedTurns,
+          snapshots: snapshots.length,
+          stuck,
+          terminal,
+          waitingApprovals
+        });
+        const health = overviewHealth(task, stage, waitingApprovals, conflictFiles, stuck, state);
         const risk = overviewRisk(task, {
           conflictFiles,
-          filesChanged: diff?.summary.filesChanged ?? 0,
+          filesChanged,
           insertions: diff?.summary.insertions ?? 0,
           stuck,
           terminal,
@@ -45906,7 +45942,7 @@ var WorkbenchOrchestrator = class {
           branchReady,
           conflictFiles,
           currentStep: summarizeCurrentStep(events, task),
-          filesChanged: diff?.summary.filesChanged ?? 0,
+          filesChanged,
           health,
           healthReason: overviewHealthReason(health, task, waitingApprovals, conflictFiles, stuck, orphanedRunning),
           idleMs,
@@ -45926,6 +45962,18 @@ var WorkbenchOrchestrator = class {
           runtimeMs,
           snapshotCount: snapshots.length,
           stage,
+          state,
+          stateReason: overviewStateReason(state, task, {
+            activeTurn,
+            conflictFiles,
+            filesChanged,
+            latestDelivery,
+            queuedTurns,
+            snapshots: snapshots.length,
+            stuck,
+            terminal,
+            waitingApprovals
+          }),
           stuck,
           task,
           terminal,
@@ -45998,10 +46046,13 @@ var WorkbenchOrchestrator = class {
     }
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const id = randomUUID();
-    const worktreeBranch = `agent-workbench/${id}`;
     const worktreePath = join4(this.worktreeRoot, project.name, id);
-    const baseBranch = normalizeBranchName(input.workingBranch) || input.baseBranch || await this.options.git.currentBranch(project.path).catch(() => project.defaultBranch) || project.defaultBranch;
-    await this.options.git.createWorktree(project.path, worktreePath, worktreeBranch, baseBranch);
+    const workingBranch = normalizeBranchName(input.workingBranch) || defaultSessionBranchName(id);
+    if (await this.options.git.branchExists(project.path, workingBranch)) {
+      throw new Error(`Branch already exists: ${workingBranch}. Choose a new session branch name.`);
+    }
+    const baseBranch = input.baseBranch || await this.newWorkingBranchStartPoint(project.path, project.defaultBranch);
+    await this.options.git.createWorktree(project.path, worktreePath, workingBranch, baseBranch);
     if (input.agentSessionId && isGeminiBackendId(backendId)) {
       await bridgeGeminiSessionToWorktree(project.path, worktreePath, input.agentSessionId);
     }
@@ -46020,8 +46071,8 @@ var WorkbenchOrchestrator = class {
       baseBranch,
       modeId: input.modeId,
       worktreePath,
-      worktreeBranch,
-      branches: createInitialSessionBranches(worktreeBranch, now),
+      worktreeBranch: workingBranch,
+      branches: createInitialSessionBranches(workingBranch, now),
       createdAt: now,
       updatedAt: now,
       startedAt: now
@@ -46440,10 +46491,10 @@ var WorkbenchOrchestrator = class {
     return updated;
   }
   async listSessionBranches(taskId) {
-    const { project, task } = await this.requireSession(taskId);
+    const { task, worktreePath } = await this.requireSession(taskId);
     const updated = await this.updateTask({
       ...normalizeTaskBranches(task),
-      branches: await this.originalRepoBranchesFromGit(task, project.path),
+      branches: await this.sessionBranchesFromGit(task, worktreePath),
       updatedAt: (/* @__PURE__ */ new Date()).toISOString()
     });
     return {
@@ -46475,9 +46526,9 @@ var WorkbenchOrchestrator = class {
     };
   }
   async updateManagedBranch(taskId, branchId, input) {
-    const { project, task } = await this.requireSession(taskId);
+    const { task, worktreePath } = await this.requireSession(taskId);
     const normalized = normalizeTaskBranches(task);
-    const branches = await this.originalRepoBranchesFromGit(normalized, project.path);
+    const branches = await this.sessionBranchesFromGit(normalized, worktreePath);
     const branch = branches.find((item) => item.id === branchId || item.name === branchId);
     if (!branch) {
       throw new Error("Branch target not found.");
@@ -46491,15 +46542,16 @@ var WorkbenchOrchestrator = class {
       }
       if (nextName !== branch.name) {
         ensureUniqueBranchName(branches.filter((item) => item.name !== branch.name), nextName);
-        await this.options.git.renameBranch(project.path, branch.name, nextName);
+        await this.options.git.renameBranch(worktreePath, branch.name, nextName);
       }
     }
     if (input.applySelected === true) {
-      await this.options.git.switchBranch(project.path, nextName);
+      await this.options.git.switchBranch(worktreePath, nextName);
     }
     const updated = await this.updateTask({
       ...normalized,
-      branches: await this.originalRepoBranchesFromGit({ ...normalized, updatedAt: now }, project.path),
+      worktreeBranch: nextName,
+      branches: await this.sessionBranchesFromGit({ ...normalized, worktreeBranch: nextName, updatedAt: now }, worktreePath),
       updatedAt: now
     });
     return {
@@ -46623,7 +46675,7 @@ ${dirty.trim()}`);
       this.options.git.currentCommit(project.path)
     ]);
     return {
-      branches: branches.filter((branch) => branch.checkedOutHere || !branch.name.startsWith("agent-workbench/")).map((branch) => ({
+      branches: branches.filter((branch) => !branch.name.startsWith("agent-workbench/")).map((branch) => ({
         active: branch.active,
         checkedOutHere: branch.checkedOutHere,
         checkedOutPath: branch.checkedOutPath,
@@ -46782,92 +46834,92 @@ ${dirty.trim()}`);
     }
   }
   async deliveryTarget(taskId) {
-    const { project } = await this.requireSession(taskId);
+    const { worktreePath } = await this.requireSession(taskId);
     const [currentBranch, currentHead, files, remotes, status] = await Promise.all([
-      this.options.git.currentBranch(project.path).catch(() => void 0),
-      this.options.git.currentCommit(project.path),
-      this.options.git.statusFiles(project.path),
-      this.options.git.listRemotes(project.path).catch(() => []),
-      this.options.git.statusPorcelain(project.path)
+      this.options.git.currentBranch(worktreePath).catch(() => void 0),
+      this.options.git.currentCommit(worktreePath),
+      this.options.git.statusFiles(worktreePath),
+      this.options.git.listRemotes(worktreePath).catch(() => []),
+      this.options.git.statusPorcelain(worktreePath)
     ]);
     return {
       currentBranch,
       currentHead,
       files,
-      projectPath: project.path,
+      projectPath: worktreePath,
       remotes,
       status
     };
   }
   async addOriginalRepositoryChanges(taskId, input) {
-    const { project, task } = await this.requireSession(taskId);
+    const { task, worktreePath } = await this.requireSession(taskId);
     const files = [...new Set((input?.files ?? []).map((file2) => file2.trim()).filter(Boolean))];
     await this.emitAction(
       task.id,
       "repo_add",
       "started",
-      files.length > 0 ? `Staging ${files.length} selected original repository file${files.length === 1 ? "" : "s"}.` : "Staging original repository changes.",
+      files.length > 0 ? `Staging ${files.length} selected session file${files.length === 1 ? "" : "s"}.` : "Staging session branch changes.",
       void 0,
       files.length > 0 ? { files } : void 0
     );
     try {
       if (files.length > 0) {
-        await this.options.git.addPaths(project.path, files);
+        await this.options.git.addPaths(worktreePath, files);
       } else {
-        await this.options.git.addAll(project.path);
+        await this.options.git.addAll(worktreePath);
       }
       const [branch, nextFiles, status] = await Promise.all([
-        this.options.git.currentBranch(project.path).catch(() => void 0),
-        this.options.git.statusFiles(project.path),
-        this.options.git.statusPorcelain(project.path)
+        this.options.git.currentBranch(worktreePath).catch(() => void 0),
+        this.options.git.statusFiles(worktreePath),
+        this.options.git.statusPorcelain(worktreePath)
       ]);
-      await this.emitAction(task.id, "repo_add", "completed", "Original repository changes staged.", status, {
+      await this.emitAction(task.id, "repo_add", "completed", "Session branch changes staged.", status, {
         branch,
         files,
-        projectPath: project.path,
+        projectPath: worktreePath,
         status
       });
       return {
         branch,
         files: nextFiles,
-        projectPath: project.path,
+        projectPath: worktreePath,
         status,
         task
       };
     } catch (error48) {
       const message = formatUnknownError(error48);
-      await this.emitAction(task.id, "repo_add", "failed", "Failed to stage original repository changes.", message);
+      await this.emitAction(task.id, "repo_add", "failed", "Failed to stage session branch changes.", message);
       throw error48;
     }
   }
   async commitOriginalRepositoryChanges(taskId, input) {
-    const { project, task } = await this.requireSession(taskId);
+    const { task, worktreePath } = await this.requireSession(taskId);
     const message = input.message.trim();
     if (!message) {
       throw new Error("Commit message cannot be empty.");
     }
-    await this.emitAction(task.id, "repo_commit", "started", `Committing original repository changes on ${project.path}.`);
+    await this.emitAction(task.id, "repo_commit", "started", `Committing session branch changes on ${worktreePath}.`);
     try {
-      const branch = await this.options.git.currentBranch(project.path).catch(() => void 0);
-      const commit = await this.options.git.commitStaged(project.path, message);
+      const branch = await this.options.git.currentBranch(worktreePath).catch(() => void 0);
+      const commit = await this.options.git.commitStaged(worktreePath, message);
       const updated = await this.updateTask({ ...task, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
-      const status = await this.options.git.statusPorcelain(project.path);
-      await this.emitAction(task.id, "repo_commit", "completed", `Committed original repository changes${branch ? ` on ${branch}` : ""}.`, commit.commitSha, {
+      const status = await this.options.git.statusPorcelain(worktreePath);
+      await this.emitAction(task.id, "repo_commit", "completed", `Committed session branch changes${branch ? ` on ${branch}` : ""}.`, commit.commitSha, {
         branch,
         commitSha: commit.commitSha,
-        projectPath: project.path,
+        projectPath: worktreePath,
         status
       });
       return {
         branch,
         commitSha: commit.commitSha,
-        projectPath: project.path,
+        projectPath: worktreePath,
         status,
         task: updated
       };
     } catch (error48) {
       const message2 = formatUnknownError(error48);
-      await this.emitAction(task.id, "repo_commit", "failed", "Failed to commit original repository changes.", message2);
+      await this.emitAction(task.id, "repo_commit", "failed", "Failed to commit session branch changes.", message2);
       throw error48;
     }
   }
@@ -46907,14 +46959,14 @@ ${dirty.trim()}`);
     }
   }
   async pushSessionBranch(taskId, input = {}) {
-    const { project, task } = await this.requireSession(taskId);
-    const branch = await this.options.git.currentBranch(project.path);
+    const { task, worktreePath } = await this.requireSession(taskId);
+    const branch = await this.options.git.currentBranch(worktreePath);
     const remote = input.remote?.trim() || "origin";
     await this.emitAction(task.id, "push_branch", "started", `Pushing ${branch} to ${remote}.`);
     try {
-      const summary = summarizeDiff(await this.options.git.diff(project.path));
-      const commitSha = await this.options.git.currentCommit(project.path);
-      await this.options.git.pushBranch(project.path, branch, remote);
+      const summary = summarizeDiff(await this.options.git.diff(worktreePath));
+      const commitSha = await this.options.git.currentCommit(worktreePath);
+      await this.options.git.pushBranch(worktreePath, branch, remote);
       const updated = await this.updateTask({ ...task, status: "branch_ready", updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
       await this.emitAction(task.id, "push_branch", "completed", `Pushed ${branch} to ${remote}.`, commitSha, {
         branch,
@@ -46936,39 +46988,39 @@ ${dirty.trim()}`);
     }
   }
   async createPullRequest(taskId, input = {}) {
-    const { project, task } = await this.requireSession(taskId);
-    const branch = await this.options.git.currentBranch(project.path);
+    const { project, task, worktreePath } = await this.requireSession(taskId);
+    const branch = await this.options.git.currentBranch(worktreePath);
     const remote = input.remote?.trim() || "origin";
     await this.emitAction(task.id, "create_pr", "started", `Creating draft PR for ${branch}.`);
     try {
-      const status = await this.options.git.statusPorcelain(project.path);
-      let commitSha = await this.options.git.currentCommit(project.path);
+      const status = await this.options.git.statusPorcelain(worktreePath);
+      let commitSha = await this.options.git.currentCommit(worktreePath);
       if (status.trim()) {
         const commitMessage = input.commitMessage?.trim() || defaultDeliveryCommitMessage(task);
-        await this.emitAction(task.id, "repo_add", "started", `Staging original repository changes before Draft PR.`, status, {
+        await this.emitAction(task.id, "repo_add", "started", `Staging session branch changes before Draft PR.`, status, {
           branch,
-          projectPath: project.path,
+          projectPath: worktreePath,
           status
         });
-        await this.options.git.addAll(project.path);
-        await this.emitAction(task.id, "repo_commit", "started", `Committing original repository changes before Draft PR.`, commitMessage, {
+        await this.options.git.addAll(worktreePath);
+        await this.emitAction(task.id, "repo_commit", "started", `Committing session branch changes before Draft PR.`, commitMessage, {
           branch,
-          projectPath: project.path
+          projectPath: worktreePath
         });
-        const commit = await this.options.git.commitStaged(project.path, commitMessage);
+        const commit = await this.options.git.commitStaged(worktreePath, commitMessage);
         commitSha = commit.commitSha;
-        const postCommitStatus = await this.options.git.statusPorcelain(project.path);
-        await this.emitAction(task.id, "repo_commit", "completed", `Committed original repository changes on ${branch}.`, commitSha, {
+        const postCommitStatus = await this.options.git.statusPorcelain(worktreePath);
+        await this.emitAction(task.id, "repo_commit", "completed", `Committed session branch changes on ${branch}.`, commitSha, {
           branch,
           commitSha,
-          projectPath: project.path,
+          projectPath: worktreePath,
           status: postCommitStatus
         });
       }
-      const summary = summarizeDiff(await this.options.git.diff(project.path));
+      const summary = summarizeDiff(await this.options.git.diff(worktreePath));
       let pushed = false;
       try {
-        await this.options.git.pushBranch(project.path, branch, remote);
+        await this.options.git.pushBranch(worktreePath, branch, remote);
         pushed = true;
       } catch (pushError) {
         const message = [
@@ -46995,9 +47047,9 @@ ${dirty.trim()}`);
           task: updated2
         };
       }
-      const baseBranch = await this.pullRequestBaseBranch(project.path, project.defaultBranch, remote);
+      const baseBranch = await this.pullRequestBaseBranch(worktreePath, project.defaultBranch, remote);
       const baseRef = `refs/remotes/${remote}/${baseBranch}`;
-      const hasCommits = await this.options.git.branchHasCommitsAhead(project.path, baseRef, branch);
+      const hasCommits = await this.options.git.branchHasCommitsAhead(worktreePath, baseRef, branch);
       if (!hasCommits) {
         const message = `No pull request can be created because ${branch} has no commits ahead of ${remote}/${baseBranch}. Commit a change on ${branch}, or switch to a branch that differs from ${baseBranch}.`;
         const updated2 = await this.updateTask({ ...task, status: "branch_ready", updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
@@ -47107,6 +47159,22 @@ ${dirty.trim()}`);
     }
     throw new Error(`Cannot find a valid base branch for ${remote}. Configure origin/HEAD or set the project default branch to a branch name.`);
   }
+  async newWorkingBranchStartPoint(projectPath, projectDefaultBranch) {
+    const remote = "origin";
+    const remoteDefault = await this.options.git.defaultRemoteBranch(projectPath, remote);
+    const candidates = [remoteDefault, "main", "master", projectDefaultBranch].map((candidate) => candidate?.trim()).filter((candidate) => typeof candidate === "string" && candidate.length > 0).filter((candidate) => !looksLikeCommitSha(candidate));
+    for (const candidate of candidates) {
+      if (await this.options.git.branchExists(projectPath, candidate)) {
+        return candidate;
+      }
+      const remoteRef = `refs/remotes/${remote}/${candidate}`;
+      const remoteExists = await this.options.git.run(["rev-parse", "--verify", "--quiet", remoteRef], projectPath);
+      if (remoteExists.exitCode === 0) {
+        return remoteRef;
+      }
+    }
+    return await this.options.git.currentBranch(projectPath).catch(() => void 0) || projectDefaultBranch || "HEAD";
+  }
   async applySessionUnsafe(taskId) {
     const { project, task, worktreePath } = await this.requireSession(taskId);
     await this.emitAction(task.id, "apply", "started", "Force applying session patch with git rejects enabled.");
@@ -47184,6 +47252,32 @@ ${dirty.trim()}`);
   async listSessionSnapshots(taskId) {
     return this.options.store.listSnapshots(taskId);
   }
+  async updateSessionSnapshot(taskId, snapshotId, input) {
+    const snapshot = await this.options.store.getSnapshot(taskId, snapshotId);
+    if (!snapshot) {
+      throw new Error("Snapshot not found.");
+    }
+    const label = input.label?.trim();
+    if (input.label !== void 0 && !label) {
+      throw new Error("Snapshot title cannot be empty.");
+    }
+    const updated = {
+      ...snapshot,
+      description: input.description?.trim() || void 0,
+      label: label || snapshot.label
+    };
+    await this.options.store.updateSnapshot(updated);
+    await this.emitAction(taskId, "snapshot", "completed", `Snapshot updated: ${updated.label}.`, void 0, updated);
+    return updated;
+  }
+  async deleteSessionSnapshot(taskId, snapshotId) {
+    const snapshot = await this.options.store.getSnapshot(taskId, snapshotId);
+    if (!snapshot) {
+      throw new Error("Snapshot not found.");
+    }
+    await this.options.store.deleteSnapshot(taskId, snapshotId);
+    await this.emitAction(taskId, "snapshot", "completed", `Snapshot deleted: ${snapshot.label}.`, void 0, snapshot);
+  }
   async readSessionSnapshotPatch(taskId, snapshotId) {
     const snapshot = await this.options.store.getSnapshot(taskId, snapshotId);
     if (!snapshot) {
@@ -47223,7 +47317,7 @@ ${dirty.trim()}`);
     return snapshot;
   }
   async rollbackSession(taskId, snapshotId) {
-    const { project, task } = await this.requireSession(taskId);
+    const { project, task, worktreePath } = await this.requireSession(taskId);
     const snapshots = await this.options.store.listSnapshots(taskId);
     const snapshot = snapshotId ? snapshots.find((item) => item.id === snapshotId) : [...snapshots].reverse().find((item) => item.kind === "before_apply");
     if (!snapshot) {
@@ -47232,20 +47326,44 @@ ${dirty.trim()}`);
     await this.emitAction(task.id, "rollback", "started", `Rolling back with snapshot: ${snapshot.label}.`, snapshot.patchPath);
     try {
       const patchText = await readFile4(snapshot.patchPath, "utf8");
-      if (!patchText.trim()) {
-        throw new Error("Snapshot is empty; nothing to roll back.");
+      let safetySnapshot;
+      const baseRef = task.baseBranch || "HEAD";
+      const currentStatus = await this.options.git.statusPorcelain(worktreePath);
+      if (currentStatus.trim()) {
+        const currentPatchText = await this.sessionPatch(task, worktreePath);
+        safetySnapshot = await this.writeSessionSnapshot(
+          task,
+          project,
+          currentPatchText,
+          summarizeDiff(currentPatchText),
+          "rollback",
+          `Safety before rollback to ${snapshot.label}`,
+          "Automatic safety snapshot created before rollback."
+        );
+        await this.emitAction(task.id, "snapshot", "completed", `Safety snapshot saved: ${safetySnapshot.label}.`, safetySnapshot.patchPath, safetySnapshot);
       }
-      if (snapshot.kind === "before_apply") {
-        await this.options.git.applyPatchReverse(project.path, patchText);
-      } else {
-        await this.options.git.applyPatch(project.path, patchText);
+      const reset = await this.options.git.run(["reset", "--hard", baseRef], worktreePath);
+      if (reset.exitCode !== 0) {
+        throw new Error(reset.stderr.trim() || `Failed to reset session worktree to ${baseRef}.`);
+      }
+      const clean = await this.options.git.run(["clean", "-fd"], worktreePath);
+      if (clean.exitCode !== 0) {
+        throw new Error(clean.stderr.trim() || "Failed to clean session worktree.");
+      }
+      if (patchText.trim()) {
+        await this.options.git.checkApplyPatchDirect(worktreePath, patchText);
+        await this.options.git.applyPatchDirect(worktreePath, patchText);
       }
       const rollbackSnapshot = await this.createSessionSnapshot(taskId, "rollback", `Rollback marker after ${snapshot.label}`);
-      await this.emitAction(task.id, "rollback", "completed", `Rolled back using ${snapshot.label}.`, snapshot.patchPath, {
+      await this.captureDiff({ ...task, worktreePath });
+      await this.emitAction(task.id, "rollback", "completed", `Restored session worktree to snapshot: ${snapshot.label}.`, snapshot.patchPath, {
+        baseRef,
         rollbackSnapshot,
-        snapshot
+        safetySnapshot,
+        snapshot,
+        worktreePath
       });
-      return rollbackSnapshot;
+      return { rollbackSnapshot, safetySnapshot };
     } catch (error48) {
       const message = formatUnknownError(error48);
       await this.emitAction(task.id, "rollback", "failed", "Failed to roll back session.", message);
@@ -47412,6 +47530,16 @@ ${dirty.trim()}`);
       path: resolved.relativePath,
       size: metadata.size,
       updatedAt: metadata.mtime.toISOString()
+    };
+  }
+  async createSessionDirectory(taskId, input) {
+    const { task, worktreePath } = await this.requireSession(taskId);
+    const resolved = resolveSessionFilePath(worktreePath, input.path);
+    await mkdir2(resolved.absolutePath, { recursive: true });
+    await this.updateTask({ ...task, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    return {
+      kind: "directory",
+      path: resolved.relativePath
     };
   }
   async uploadSessionImage(taskId, input) {
@@ -49298,18 +49426,24 @@ function cleanOverviewText(value) {
   }
   return value.replace(/\s+/g, " ").slice(0, 220);
 }
-function overviewStage(task, waitingApprovals, stuck, conflictFiles, terminal) {
+function overviewStage(task, waitingApprovals, stuck, conflictFiles, terminal, input) {
   if (waitingApprovals > 0) {
     return "approval";
   }
   if (conflictFiles.length > 0) {
     return "conflict";
   }
-  if (terminal?.status === "running") {
-    return "terminal";
-  }
   if (stuck || task.status === "failed" || task.status === "cancelled") {
     return "failed";
+  }
+  if (input && hasReviewMaterial(input.filesChanged, input.snapshots, input.latestDelivery, task.status)) {
+    return "review";
+  }
+  if (input && (input.activeTurn || input.queuedTurns > 0)) {
+    return "running";
+  }
+  if (terminal?.status === "running") {
+    return "terminal";
   }
   if (task.status === "pr_ready") {
     return "pr";
@@ -49327,6 +49461,60 @@ function overviewStage(task, waitingApprovals, stuck, conflictFiles, terminal) {
     return "running";
   }
   return "idle";
+}
+function overviewState(task, input) {
+  if (input.stuck || task.status === "failed" || task.status === "cancelled") {
+    return "failed";
+  }
+  if (input.waitingApprovals > 0 || input.conflictFiles.length > 0 || input.latestDelivery.status === "failed") {
+    return "needs_action";
+  }
+  if (input.activeTurn || input.queuedTurns > 0) {
+    return "running";
+  }
+  if (hasReviewMaterial(input.filesChanged, input.snapshots, input.latestDelivery, task.status)) {
+    return "review";
+  }
+  if (input.terminal?.status === "running") {
+    return "ready";
+  }
+  return "detached";
+}
+function overviewStateReason(state, task, input) {
+  if (state === "failed") {
+    if (input.stuck) {
+      return "No activity while the session was marked running.";
+    }
+    return task.status === "cancelled" ? "The session was stopped." : "The latest session operation failed.";
+  }
+  if (state === "needs_action") {
+    if (input.conflictFiles.length > 0) {
+      return `${input.conflictFiles.length} conflict${input.conflictFiles.length === 1 ? "" : "s"} need resolution.`;
+    }
+    if (input.waitingApprovals > 0) {
+      return `${input.waitingApprovals} approval request${input.waitingApprovals === 1 ? "" : "s"} waiting.`;
+    }
+    return "The latest delivery operation needs follow-up.";
+  }
+  if (state === "running") {
+    return input.queuedTurns > 0 ? `${input.queuedTurns} queued turn${input.queuedTurns === 1 ? "" : "s"} waiting behind active work.` : "Agent work is actively running.";
+  }
+  if (state === "review") {
+    if (input.filesChanged > 0) {
+      return `${input.filesChanged} changed file${input.filesChanged === 1 ? "" : "s"} ready for review.`;
+    }
+    if (input.latestDelivery.status !== "none") {
+      return "Delivery output is ready for review.";
+    }
+    return "Session has review material.";
+  }
+  if (state === "ready") {
+    return "Native terminal is attached and ready for input.";
+  }
+  return "No terminal is currently attached; the session worktree is preserved.";
+}
+function hasReviewMaterial(filesChanged, snapshots, latestDelivery, status) {
+  return filesChanged > 0 || snapshots > 0 || latestDelivery.status !== "none" || status === "review_ready" || status === "branch_ready" || status === "pr_ready" || status === "applied";
 }
 function isRestartRecoverableStatus(status) {
   return status === "running" || status === "starting" || status === "waiting_approval";
@@ -49376,7 +49564,22 @@ function uniqueStrings(values) {
 function isOrphanedRunningTask(task, input) {
   return task.status === "running" && !input.activeTurn && !input.startupActive && input.terminal?.status !== "running" && input.idleMs > 30 * 1e3;
 }
-function overviewHealth(task, stage, waitingApprovals, conflictFiles, stuck) {
+function overviewHealth(task, stage, waitingApprovals, conflictFiles, stuck, state) {
+  if (state === "ready" || state === "detached") {
+    return "ok";
+  }
+  if (state === "review") {
+    return "attention";
+  }
+  if (state === "running") {
+    return "running";
+  }
+  if (state === "needs_action") {
+    return "blocked";
+  }
+  if (state === "failed") {
+    return "failed";
+  }
   if (stuck) {
     return "stuck";
   }
@@ -49532,6 +49735,9 @@ function createInitialSessionBranches(branchName, now, id = randomUUID()) {
       updatedAt: now
     }
   ];
+}
+function defaultSessionBranchName(sessionId) {
+  return `aw/session-${sessionId.slice(0, 8)}`;
 }
 function normalizeTaskBranches(task) {
   if (task.branches?.length) {
@@ -49750,6 +49956,23 @@ var LocalStore = class {
     await this.writeQueue;
     const data = await this.read();
     return (data.snapshots ?? []).filter((snapshot) => snapshot.taskId === taskId);
+  }
+  async updateSnapshot(snapshot) {
+    await this.mutate((data) => {
+      data.snapshots ??= [];
+      const index = data.snapshots.findIndex((item) => item.taskId === snapshot.taskId && item.id === snapshot.id);
+      if (index < 0) {
+        throw new Error("Snapshot not found.");
+      }
+      data.snapshots[index] = snapshot;
+    });
+    return snapshot;
+  }
+  async deleteSnapshot(taskId, snapshotId) {
+    await this.mutate((data) => {
+      data.snapshots ??= [];
+      data.snapshots = data.snapshots.filter((snapshot) => snapshot.taskId !== taskId || snapshot.id !== snapshotId);
+    });
   }
   async health() {
     await this.writeQueue;
@@ -67337,6 +67560,16 @@ async function createWorkbenchServer(options = {}) {
       path: body.path
     });
   });
+  app.post("/api/sessions/:id/directories", async (request) => {
+    const params = request.params;
+    const body = request.body ?? {};
+    if (!body.path || typeof body.path !== "string") {
+      throw new Error("Missing required field: path");
+    }
+    return orchestrator.createSessionDirectory(params.id, {
+      path: body.path
+    });
+  });
   app.post("/api/sessions/:id/uploads/images", { bodyLimit: 18 * 1024 * 1024 }, async (request) => {
     const params = request.params;
     const body = request.body ?? {};
@@ -67373,6 +67606,16 @@ async function createWorkbenchServer(options = {}) {
       body.label?.trim() || "Manual snapshot",
       body.description?.trim() || void 0
     );
+  });
+  app.patch("/api/sessions/:id/snapshots/:snapshotId", async (request) => {
+    const params = request.params;
+    const body = request.body ?? {};
+    return orchestrator.updateSessionSnapshot(params.id, params.snapshotId, body);
+  });
+  app.delete("/api/sessions/:id/snapshots/:snapshotId", async (request) => {
+    const params = request.params;
+    await orchestrator.deleteSessionSnapshot(params.id, params.snapshotId);
+    return { ok: true };
   });
   app.post("/api/sessions/:id/rollback", async (request) => {
     const params = request.params;
@@ -67764,7 +68007,7 @@ var TerminalManager = class {
     const existing = this.sessions.get(key);
     const shell = process.env.SHELL || "/bin/bash";
     const command = process.env.AGENT_WORKBENCH_PROJECT_SHELL_COMMAND?.trim() || `exec ${shellQuote(shell)} -l`;
-    const handle = existing && !existing.exited ? existing : this.start(key, "project-shell", taskId, context.task, context.project.path, cols, rows, command);
+    const handle = existing && !existing.exited ? existing : this.start(key, "project-shell", taskId, context.task, context.worktreePath, cols, rows, command);
     handle.subscribers.add(socket);
     this.sendStatus(socket, taskId, handle);
     for (const chunk of handle.buffer) {
@@ -67814,9 +68057,10 @@ var TerminalManager = class {
   }
   start(key, channel, taskId, task, cwd, cols, rows, command) {
     const shell = process.env.SHELL || "/bin/bash";
-    const guardedCommand = terminalWorktreeCommand(command, cwd, channel === "project-shell" ? "project repo" : "isolated worktree");
+    const guardedCommand = terminalWorktreeCommand(command, cwd, channel === "project-shell" ? "session worktree" : "isolated worktree");
     const env = { ...process.env };
     delete env.GEMINI_CLI_IDE_WORKSPACE_PATH;
+    delete env.NO_COLOR;
     const processHandle = pty.spawn(shell, ["-lc", guardedCommand], {
       cols,
       cwd,
@@ -67827,8 +68071,10 @@ var TerminalManager = class {
         AGENT_WORKBENCH_DISPLAY_SESSION_ID: displaySessionId2(task),
         AGENT_WORKBENCH_WORKTREE: cwd,
         AGENT_WORKBENCH_WORKTREE_REAL: cwd,
+        COLORTERM: "truecolor",
+        FORCE_COLOR: "1",
         PWD: cwd,
-        TERM: process.env.TERM || "xterm-256color"
+        TERM: "xterm-256color"
       },
       name: "xterm-256color",
       rows
@@ -67980,13 +68226,13 @@ cwd: ${cwd}\r
   }
 };
 function normalizeTerminalCommand(command, task, worktreePath) {
-  const requested = command?.trim() || (task?.backendId === "codex" ? "codex" : task?.backendId === "claude" ? "claude" : process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task));
-  if (task?.backendId === "codex" && isCodexTerminalCommand(requested)) {
+  const requested = command?.trim() || process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task);
+  if (task?.backendId === "codex") {
     const sessionId2 = nativeCodexCliSessionId(task);
     const cd = worktreePath ? ` --cd ${shellQuote(worktreePath)}` : "";
     return sessionId2 ? `codex resume${cd} ${sessionId2}` : `codex${cd}`;
   }
-  if (task?.backendId === "claude" && isClaudeTerminalCommand(requested)) {
+  if (task?.backendId === "claude") {
     const sessionId2 = nativeClaudeCliSessionId(task);
     if (sessionId2) {
       return task.agentSessionResumeMode === "resume" ? `claude --resume ${sessionId2}` : `claude --session-id ${sessionId2} --name ${shellQuote(task.title)}`;
@@ -67994,9 +68240,6 @@ function normalizeTerminalCommand(command, task, worktreePath) {
     return "claude";
   }
   if (!task || task.backendId !== "gemini" && task.backendId !== "gemini-acp") {
-    return requested;
-  }
-  if (!isGeminiTerminalCommand(requested)) {
     return requested;
   }
   const sessionId = nativeGeminiCliSessionId(task);
@@ -68035,15 +68278,6 @@ function nativeCodexCliSessionId(task) {
 }
 function nativeClaudeCliSessionId(task) {
   return task.agentSessionId && task.backendId === "claude" && (task.agentSessionKind === "native-cli" || task.agentSessionKind === void 0 && task.agentSessionOrigin === "imported") ? task.agentSessionId : void 0;
-}
-function isGeminiTerminalCommand(command) {
-  return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
-}
-function isCodexTerminalCommand(command) {
-  return command === "codex" || /^codex\s+(resume|--cd|--no-alt-screen)(?:\s|$)/.test(command);
-}
-function isClaudeTerminalCommand(command) {
-  return command === "claude" || /^claude\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
 }
 function shellQuote(value) {
   return `'${value.replaceAll("'", "'\\''")}'`;

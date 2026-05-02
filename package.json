@@ -1,11 +1,11 @@
 {
   "name": "@agent-workbench/cli",
-  "version": "0.1.6",
+  "version": "0.1.8",
   "private": false,
   "license": "MIT",
   "type": "module",
   "bin": {
-    "agent-workbench": "./dist/cli/index.js"
+    "agent-workbench": "dist/cli/index.js"
   },
   "files": [
     "README.md",

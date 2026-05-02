@@ -4,7 +4,7 @@
 
 Agent Workbench is a session-native workbench for operating coding agents.
 
-It preserves native agent behavior where that matters, especially Gemini CLI, and adds the missing operator layer:
+It preserves native agent behavior where that matters, especially Gemini CLI, Codex CLI, and Claude Code, and adds the missing operator layer:
 
 - multi-project visibility,
 - multi-session coordination,
@@ -22,15 +22,15 @@ All projects, events, sessions, diffs, snapshots, and terminals are local by def
 
 ### Web UI, Local Gateway
 
-The browser renders the UI. The local Node gateway owns filesystem access, git, PTY, Gemini integration, and storage.
+The browser renders the UI. The local Node gateway owns filesystem access, git, PTY, agent CLI integration, and storage.
 
 ### Session Native
 
-A Workbench session should bind to the real backend session when possible. For Gemini, that means native Gemini session IDs and native terminal attach.
+A Workbench session should bind to the real backend session when possible. For Gemini, Codex, and Claude, that means native session IDs and native terminal attach/resume.
 
 ### Worktree Isolation
 
-Agent work happens in isolated worktrees. The original repository is changed only through explicit apply or delivery actions.
+Agent work happens in isolated worktrees. Each implementation session owns one real branch checked out in one isolated worktree.
 
 ### Review First
 
@@ -63,34 +63,41 @@ Session tabs:
 - Changes,
 - Events,
 - Snapshots,
-- Delivery,
 - Diagnostics,
 - Terminal.
 
-The center workspace owns review, editing, snapshots, and delivery.
+The center workspace owns review, editing, snapshots, delivery, diagnostics, and the optional read-only terminal projection.
 
 ### Right Panel
 
-The right panel keeps the native Gemini Terminal visible for the selected session.
+The right panel keeps the native Agent Terminal visible for the selected session.
 
-It is intentionally separate from the independent project shell. Gemini Terminal is for the agent session; project shell is for manual repository work when needed.
+It is intentionally separate from the independent project shell. Agent Terminal is for the native coding CLI; project shell is for manual work inside the same session worktree.
 
 ## Core Interactions
 
-### Apply To Repo
+### Delivery
 
 Tooltip:
 
 ```text
-Apply changes from the Agent Workbench isolated worktree to the current active branch in the original repository.
+Stage, commit, push, and create a draft PR from this session branch.
 ```
 
-### Sync To Latest
+### Apply Patch
 
 Tooltip:
 
 ```text
-Sync the current active branch in the original repository into the Agent Workbench isolated worktree.
+Apply reviewed changes from the isolated session worktree into another branch. This is an advanced fallback, not the default shipping path.
+```
+
+### Session Branch
+
+Tooltip:
+
+```text
+This session owns one real branch checked out in one isolated worktree.
 ```
 
 ### Draft PR
@@ -98,22 +105,20 @@ Sync the current active branch in the original repository into the Agent Workben
 Tooltip:
 
 ```text
-Create a draft PR from the original repository's current active branch. Workbench automatically stages, commits, pushes, then creates the draft PR.
+Create a draft PR from the session branch. Workbench automatically stages, commits, pushes, then creates the draft PR.
 ```
 
 ## Branch Model
 
-Internal `agent-workbench/*` branches are implementation details for isolated worktrees.
+One implementation session maps to one user-visible git branch and one isolated worktree.
 
-User-facing branch management is about the original project repository:
+User-facing session branch management is intentionally small:
 
-- create branch,
-- switch branch,
 - rename branch,
-- remove branch,
-- show current active branch.
+- show base branch,
+- show worktree path.
 
-Delivery uses the original repository's active branch.
+Delivery uses the session branch.
 
 ## Snapshot Model
 
@@ -135,7 +140,7 @@ Events are still stored because audit and debugging matter. The UI, however, sho
 - final agent replies,
 - approvals,
 - key read/edit/shell actions,
-- apply/sync/snapshot/delivery actions,
+- apply patch/snapshot/delivery actions,
 - failures.
 
 Verbose tool payloads stay behind Diagnostics.

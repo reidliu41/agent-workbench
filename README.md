@@ -6,6 +6,8 @@ It focuses on one practical workflow: run several agent tasks in parallel, keep 
 
 ![Agent Workbench dashboard](agent-workbench.png)
 
+Demo: [Watch Agent Workbench on YouTube](https://youtu.be/wkr-dKIUKNA)
+
 ## 🚀 Main Features
 
 - 🚀 Multi-project management for local git repositories.
@@ -15,7 +17,9 @@ It focuses on one practical workflow: run several agent tasks in parallel, keep 
 - 🔁 Native CLI resume binding: Workbench links Gemini, Codex, and Claude session IDs and reattaches with resume automatically.
 - 🔎 Native session import for existing Gemini CLI, Codex CLI, and Claude Code sessions.
 - 👀 Changes view for reviewing CLI/agent edits immediately after they happen.
-- 🛠️ Apply to repo with target branch selection/creation, Sync to latest, snapshots, branch management, add/commit/push, and Draft PR delivery.
+- 🛠️ Review-first delivery: session branch, snapshots, add/commit/push, and Draft PR from the isolated worktree.
+- 🧩 Apply patch fallback for moving reviewed session changes into another branch when needed.
+- 🖥️ Split terminal projection: keep CLI input on the right and project the readable terminal transcript into the main workspace.
 - 🎙️ Browser voice input for faster prompting when supported by browser permissions.
 - 🖼️ Clipboard screenshot upload, inserting an image path into the CLI prompt.
 
@@ -72,18 +76,20 @@ npm run doctor
 
 ## Basic Usage
 
+Agent Workbench is designed around one default rule: one implementation session should map to one real branch, one isolated worktree, and usually one PR. For large work, use one planning session to split the work, then create separate implementation sessions for each branch.
+
 1. Open the Workbench URL in a browser.
 2. Add a local git project.
-3. Create a new session.
+3. Create a new session and choose a unique session branch.
 4. Choose Gemini CLI, Gemini ACP, Codex CLI, or Claude Code for the session.
 5. Attach the native terminal from the right panel.
 6. Workbench starts the selected CLI inside the isolated session worktree.
 7. Workbench records the native CLI session ID and uses resume on later attaches.
 8. Let the agent work in its isolated session worktree.
 9. Review changed files in Changes.
-10. Use Apply to repo to choose or create the original repo target branch, then move isolated changes there.
-11. Use Sync to latest to update the isolated session from the original repo active branch.
-12. Use Delivery to add, commit, push, and create a draft PR.
+10. Use Take snapshot before risky edits or rollback points.
+11. Use Delivery to add, commit, push, and create a draft PR from the session branch.
+12. Use Apply patch only when you intentionally need to move reviewed changes into another branch.
 
 You can also import existing native CLI sessions from the Sessions menu:
 
@@ -101,6 +107,7 @@ Gemini CLI:
 - After Gemini creates a native session ID, Workbench records it.
 - Later attaches use `gemini --resume <id>`.
 - Gemini ACP remains available for structured tool events where supported.
+- The Split button can project a read-only Gemini terminal transcript into the center workspace while input stays in the terminal.
 
 Codex CLI:
 

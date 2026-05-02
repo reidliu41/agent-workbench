@@ -15,6 +15,7 @@ import type {
   DiffSummary,
   CreateBranchResponse,
   CreatePullRequestResponse,
+  CreateSessionDirectoryRequest,
   DirectoryBrowserResponse,
   DeliveryTargetResponse,
   DiffSnapshot,
@@ -23,9 +24,11 @@ import type {
   NativeCliBackendId,
   NativeCliProjectSession,
   Project,
+  ProjectBranchListResponse,
   ProjectDeliveryResponse,
   ProjectStatusFile,
   PushBranchResponse,
+  RollbackSessionResponse,
   SessionAction,
   SessionDiagnostics,
   SessionFileContentResponse,
@@ -38,10 +41,13 @@ import type {
   RuntimeConfigResponse,
   SessionBranch,
   SessionBranchListResponse,
+  SessionState,
   SlashCommandInfo,
   SystemDoctorResponse,
   Task,
   TaskStatus,
+  UpdateSessionFileRequest,
+  UpdateSessionSnapshotRequest,
 } from "@agent-workbench/protocol";
 import "./styles.css";
 
@@ -92,6 +98,7 @@ interface SessionOpenIntent {
 
 interface NewSessionDraft {
   backendId: string;
+  branchName: string;
   modeId: string;
   projectId: string;
   title: string;
@@ -341,6 +348,8 @@ function App(): React.JSX.Element {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStoredBoolean(SIDEBAR_COLLAPSED_STORAGE_KEY));
   const [sidebarWidth, setSidebarWidth] = useState(() => readStoredNumber(SIDEBAR_WIDTH_STORAGE_KEY, 340));
   const [sessionTerminalWidth, setSessionTerminalWidth] = useState(() => readStoredNumber(SESSION_TERMINAL_WIDTH_STORAGE_KEY, 640));
+  const [projectedTerminalTaskId, setProjectedTerminalTaskId] = useState<string>();
+  const [terminalProjectionLines, setTerminalProjectionLines] = useState<string[]>([]);
   const appShellRef = useRef<HTMLElement>(null);
   const sidebarDragSuppressedClickRef = useRef(false);
   const sessionDragSuppressedClickRef = useRef(false);
@@ -358,6 +367,16 @@ function App(): React.JSX.Element {
   useEffect(() => {
     window.localStorage.setItem(SESSION_TERMINAL_WIDTH_STORAGE_KEY, String(sessionTerminalWidth));
   }, [sessionTerminalWidth]);
+
+  useEffect(() => {
+    if (projectedTerminalTaskId && projectedTerminalTaskId !== selectedTaskId) {
+      setProjectedTerminalTaskId(undefined);
+    }
+  }, [projectedTerminalTaskId, selectedTaskId]);
+
+  useEffect(() => {
+    setTerminalProjectionLines([]);
+  }, [selectedTaskId]);
 
   useEffect(() => {
     if (!notice) {
@@ -415,12 +434,14 @@ function App(): React.JSX.Element {
     () => overviews.find((overview) => overview.task.id === selectedTaskId),
     [overviews, selectedTaskId],
   );
+  const overviewByTaskId = useMemo(() => new Map(overviews.map((overview) => [overview.task.id, overview])), [overviews]);
   const displayProject = selectedTaskProject ?? activeProject;
   const selectedBackendStatus = useMemo(
     () => backends.find((backend) => backend.id === (selectedTask?.backendId ?? selectedBackendId)),
     [backends, selectedBackendId, selectedTask?.backendId],
   );
   const selectedTaskBackend = selectedTask ? backendLabel(backends, selectedTask.backendId) : undefined;
+  const terminalProjected = Boolean(selectedTask && projectedTerminalTaskId === selectedTask.id);
   const availableCommands = useMemo(() => mergeAvailableCommands(nativeSlashCommands, availableCommandsFromEvents(events)), [events, nativeSlashCommands]);
   const acpCommands = useMemo(() => availableCommandsFromEvents(events), [events]);
   const slashMatches = useMemo(() => commandMatches(prompt, availableCommands), [prompt, availableCommands]);
@@ -591,6 +612,7 @@ function App(): React.JSX.Element {
     setSessionToolsMenuOpen(false);
     setNewSessionDraft({
       backendId: selectedBackendId,
+      branchName: nextWorkingBranchName(tasks, activeProject.id),
       modeId: selectedModeId,
       projectId: activeProject.id,
       title: nextSessionTitle(tasks, activeProject.id),
@@ -605,6 +627,7 @@ function App(): React.JSX.Element {
     }
     const draft = newSessionDraft ?? {
       backendId: selectedBackendId,
+      branchName: nextWorkingBranchName(tasks, activeProject?.id ?? projects[0]?.id ?? ""),
       modeId: selectedModeId,
       projectId: activeProject?.id ?? projects[0]?.id ?? "",
       title: nextSessionTitle(tasks, activeProject?.id ?? projects[0]?.id ?? ""),
@@ -624,6 +647,7 @@ function App(): React.JSX.Element {
           projectId: project.id,
           title,
           backendId: draft.backendId,
+          workingBranch: draft.branchName.trim(),
           modeId: draft.modeId,
         }),
       });
@@ -1176,13 +1200,17 @@ function App(): React.JSX.Element {
         if (!selectedSnapshotId) {
           throw new Error("Select a snapshot before rolling back.");
         }
-        const snapshot = await api<SessionSnapshot>(`/api/sessions/${task.id}/rollback`, {
+        const result = await api<RollbackSessionResponse>(`/api/sessions/${task.id}/rollback`, {
           method: "POST",
           body: JSON.stringify({ snapshotId: selectedSnapshotId }),
         });
-        setSnapshots((current) => [...current, snapshot]);
-        setSelectedSnapshotId(snapshot.id);
-        setNotice(`Rollback completed. Marker snapshot: ${snapshot.patchPath}`);
+        setSnapshots((current) => [...current, ...(result.safetySnapshot ? [result.safetySnapshot] : []), result.rollbackSnapshot]);
+        setSelectedSnapshotId(result.rollbackSnapshot.id);
+        setNotice(
+          result.safetySnapshot
+            ? `Rollback completed. Safety snapshot saved: ${result.safetySnapshot.label}.`
+            : `Rollback completed. Marker snapshot: ${result.rollbackSnapshot.label}.`,
+        );
         return;
       }
 
@@ -1381,7 +1409,7 @@ function App(): React.JSX.Element {
                 >
                   <span className="task-title-row">
                     <span>{task.title}</span>
-                    <span className={`task-status-badge task-status-${task.status}`}>{sidebarTaskStatusLabel(task.status)}</span>
+                    <SessionStateBadge overview={overviewByTaskId.get(task.id)} task={task} />
                   </span>
                   <small>{sessionListSubtitle(task, backendLabel(backends, task.backendId))}</small>
                 </button>
@@ -1518,93 +1546,100 @@ function App(): React.JSX.Element {
               {notice ? <div className="notice">{notice}</div> : null}
             </div>
           ) : null}
-          <section className="timeline">
-            <header>
-              <div className="timeline-heading">
-                <h2>{selectedTask?.title ?? "No session selected"}</h2>
-                <div className="timeline-meta">
-                  {displayProject?.name ? <span className="source-badge">{displayProject.name}</span> : null}
-                  {selectedTaskBackend ? <span className="source-badge">{selectedTaskBackend}</span> : null}
-                  {selectedTask && isLinkedGeminiSession(selectedTask) ? (
-                    <span className="source-badge" title={nativeSessionTitle(selectedTask)}>
-                      {nativeSessionDisplayLabel(selectedTask)}
-                    </span>
-                  ) : null}
-                  {selectedTask?.worktreePath ? (
-                    <span
-                      className="source-badge"
-                      title={selectedTask.worktreePath}
-                    >
-                      {truncateMiddle(selectedTask.worktreePath, 44)}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              <div className="timeline-controls">
-                <select value={selectedModeId} onChange={(event) => void changeSessionMode(event.target.value)}>
-                  {modeOptions.map((mode) => (
-                    <option key={mode.id} value={mode.id}>
-                      {mode.label}
-                    </option>
-                  ))}
-                </select>
-                {selectedTask ? <span className={`context-status ${agentContextClass(selectedTask)}`}>{agentContextLabel(selectedTask)}</span> : null}
-                {selectedTask ? <span className="status">{selectedTask.status}</span> : null}
-                {selectedTaskRunning ? (
-                  <button className="danger compact-button" disabled={busyAction === "cancel"} onClick={() => void performSessionAction("cancel")} type="button">
-                    {busyAction === "cancel" ? "Stopping" : "Stop"}
-                  </button>
-                ) : null}
-              </div>
-            </header>
-            <SessionWorkspaceTabs
-              active={sessionTab}
-              diffCount={diff?.summary.filesChanged ?? 0}
-              onSelect={setSessionTab}
-              snapshotCount={snapshots.length}
-            />
-            <SessionWorkspacePanel
-              applyConflict={applyConflict}
-              approvalStates={approvalStates}
-              busyAction={busyAction}
-              diff={diff}
-              events={events}
-              files={diffFiles}
-              pendingApprovals={pendingApprovals}
-              panelRef={eventListRef}
-              workEvents={workTimelineEvents}
-              onAction={(action) => {
-                if (action === "branch_manager") {
-                  if (selectedTask) {
-                    setBranchManagerTask(selectedTask);
-                  }
-                  return;
-                }
-                if (action === "delivery") {
-                  if (selectedTask) {
-                    setDeliveryTask(selectedTask);
-                  }
-                  return;
-                }
-                if (action === "apply" || action === "sync_latest" || action === "push_branch" || action === "create_pr") {
-                  if (selectedTask) {
-                    void openSessionActionConfirmation(action, selectedTask);
-                  }
-                  return;
-                }
-                void performSessionAction(action);
-              }}
-              onApproval={respondApproval}
-              onCreateSnapshot={(input) => (selectedTask ? createSnapshot(selectedTask, input) : Promise.reject(new Error("Select a session first.")))}
-              onRefreshChanges={() => (selectedTask ? refreshSessionWorkspace(selectedTask.id) : Promise.resolve())}
-              onSelectTab={setSessionTab}
-              onSelectSnapshot={setSelectedSnapshotId}
-              selectedSnapshotId={selectedSnapshotId}
-              snapshots={snapshots}
-              tab={sessionTab}
-              task={selectedTask}
-              token={token}
-            />
+          <section className={`timeline ${terminalProjected ? "terminal-projection-shell" : ""}`}>
+            {terminalProjected ? (
+              <TerminalProjection lines={terminalProjectionLines} task={selectedTask} />
+            ) : (
+              <>
+                <header>
+                  <div className="timeline-heading">
+                    <h2>{selectedTask?.title ?? "No session selected"}</h2>
+                    <div className="timeline-meta">
+                      {displayProject?.name ? <span className="source-badge">{displayProject.name}</span> : null}
+                      {selectedTaskBackend ? <span className="source-badge">{selectedTaskBackend}</span> : null}
+                      {selectedTask && isLinkedGeminiSession(selectedTask) ? (
+                        <span className="source-badge" title={nativeSessionTitle(selectedTask)}>
+                          {nativeSessionDisplayLabel(selectedTask)}
+                        </span>
+                      ) : null}
+                      {selectedTask?.worktreePath ? (
+                        <span
+                          className="source-badge"
+                          title={selectedTask.worktreePath}
+                        >
+                          {truncateMiddle(selectedTask.worktreePath, 44)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="timeline-controls">
+                    <select value={selectedModeId} onChange={(event) => void changeSessionMode(event.target.value)}>
+                      {modeOptions.map((mode) => (
+                        <option key={mode.id} value={mode.id}>
+                          {mode.label}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedTask ? <span className={`context-status ${agentContextClass(selectedTask)}`}>{agentContextLabel(selectedTask)}</span> : null}
+                    {selectedTask ? <span className="status">{selectedTask.status}</span> : null}
+                    {selectedTaskRunning ? (
+                      <button className="danger compact-button" disabled={busyAction === "cancel"} onClick={() => void performSessionAction("cancel")} type="button">
+                        {busyAction === "cancel" ? "Stopping" : "Stop"}
+                      </button>
+                    ) : null}
+                  </div>
+                </header>
+                <SessionWorkspaceTabs
+                  active={sessionTab}
+                  diffCount={diff?.summary.filesChanged ?? 0}
+                  onSelect={setSessionTab}
+                  snapshotCount={snapshots.length}
+                />
+                <SessionWorkspacePanel
+                  applyConflict={applyConflict}
+                  approvalStates={approvalStates}
+                  busyAction={busyAction}
+                  diff={diff}
+                  events={events}
+                  files={diffFiles}
+                  pendingApprovals={pendingApprovals}
+                  panelRef={eventListRef}
+                  workEvents={workTimelineEvents}
+                  onAction={(action) => {
+                    if (action === "branch_manager") {
+                      if (selectedTask) {
+                        setBranchManagerTask(selectedTask);
+                      }
+                      return;
+                    }
+                    if (action === "delivery") {
+                      if (selectedTask) {
+                        setDeliveryTask(selectedTask);
+                      }
+                      return;
+                    }
+                    if (action === "apply" || action === "sync_latest" || action === "push_branch" || action === "create_pr") {
+                      if (selectedTask) {
+                        void openSessionActionConfirmation(action, selectedTask);
+                      }
+                      return;
+                    }
+                    void performSessionAction(action);
+                  }}
+                  onApproval={respondApproval}
+                  onCreateSnapshot={(input) => (selectedTask ? createSnapshot(selectedTask, input) : Promise.reject(new Error("Select a session first.")))}
+                  onRefreshChanges={() => (selectedTask ? refreshSessionWorkspace(selectedTask.id) : Promise.resolve())}
+                  onSelectTab={setSessionTab}
+                  onSelectSnapshot={setSelectedSnapshotId}
+                  onSnapshotsChange={setSnapshots}
+                  selectedSnapshotId={selectedSnapshotId}
+                  snapshots={snapshots}
+                  tab={sessionTab}
+                  task={selectedTask}
+                  token={token}
+                />
+              </>
+            )}
           </section>
 
           <div
@@ -1642,10 +1677,22 @@ function App(): React.JSX.Element {
                 <h3>Agent Terminal</h3>
                 <small>Native agent CLI for this session. Linked Gemini, Codex, and Claude sessions reopen with their native resume command.</small>
               </div>
-              {selectedTask ? <span className={`task-status-badge task-status-${selectedTask.status}`}>{sidebarTaskStatusLabel(selectedTask.status)}</span> : null}
+              {selectedTask ? <SessionStateBadge overview={selectedOverview} task={selectedTask} /> : null}
             </div>
             <React.Suspense fallback={<p className="empty">Loading terminal...</p>}>
-              <TerminalPanel autoAttach={selectedOverview?.terminal?.status === "running"} task={selectedTask} token={token} />
+              <TerminalPanel
+                autoAttach={selectedOverview?.terminal?.status === "running"}
+                isProjected={terminalProjected}
+                key={selectedTask?.id ?? "no-session"}
+                onProjectionLinesChange={setTerminalProjectionLines}
+                onToggleProjection={() => {
+                  if (selectedTask) {
+                    setProjectedTerminalTaskId((current) => current === selectedTask.id ? undefined : selectedTask.id);
+                  }
+                }}
+                task={selectedTask}
+                token={token}
+              />
             </React.Suspense>
           </aside>
         </div>
@@ -1774,6 +1821,7 @@ function App(): React.JSX.Element {
           onChange={setNewSessionDraft}
           onSubmit={(event) => void createNewSession(event)}
           projects={projects}
+          tasks={tasks}
         />
       ) : null}
 
@@ -2243,6 +2291,56 @@ function sidebarTaskStatusLabel(status: TaskStatus): string {
       return "Applied";
     case "cancelled":
       return "Stopped";
+  }
+}
+
+function SessionStateBadge({ overview, task }: { overview?: SessionOverview; task: Task }): React.JSX.Element {
+  const state = overview?.state ?? fallbackSessionState(task.status);
+  const label = sessionStateLabel(state);
+  return (
+    <span
+      className={`task-status-badge session-state-${state}`}
+      title={overview?.stateReason ?? label}
+    >
+      {label}
+    </span>
+  );
+}
+
+function fallbackSessionState(status: TaskStatus): SessionState {
+  switch (status) {
+    case "created":
+    case "starting":
+      return "detached";
+    case "running":
+    case "waiting_approval":
+      return "running";
+    case "failed":
+    case "cancelled":
+      return "failed";
+    case "completed":
+    case "review_ready":
+    case "branch_ready":
+    case "pr_ready":
+    case "applied":
+      return "review";
+  }
+}
+
+function sessionStateLabel(state: SessionState): string {
+  switch (state) {
+    case "ready":
+      return "Ready";
+    case "running":
+      return "Running";
+    case "review":
+      return "Review";
+    case "needs_action":
+      return "Needs action";
+    case "detached":
+      return "Detached";
+    case "failed":
+      return "Failed";
   }
 }
 
@@ -4215,15 +4313,7 @@ function overviewSecondaryText(overview: SessionOverview): string {
 }
 
 function HealthPill({ overview }: { overview: SessionOverview }): React.JSX.Element {
-  const labels: Record<SessionOverview["health"], string> = {
-    attention: "Review",
-    blocked: "Blocked",
-    failed: "Failed",
-    ok: "OK",
-    running: "Running",
-    stuck: "Stuck",
-  };
-  return <span className={`status health-${overview.health}`}>{labels[overview.health]}</span>;
+  return <span className={`status session-state-${overview.state}`}>{sessionStateLabel(overview.state)}</span>;
 }
 
 function StagePill({ overview }: { overview: SessionOverview }): React.JSX.Element {
@@ -4380,6 +4470,7 @@ function NewSessionDialog({
   onChange,
   onSubmit,
   projects,
+  tasks,
 }: {
   backends: BackendStatus[];
   draft: NewSessionDraft;
@@ -4387,14 +4478,73 @@ function NewSessionDialog({
   onChange: (draft: NewSessionDraft) => void;
   onSubmit: (event: React.FormEvent) => void;
   projects: Project[];
+  tasks: Task[];
 }): React.JSX.Element {
   const selectedProject = projects.find((project) => project.id === draft.projectId);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [branchError, setBranchError] = useState<string>();
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const branchPickerRef = useRef<HTMLDivElement | null>(null);
+  const branchAlreadyExists = branches.includes(draft.branchName.trim());
+
+  useEffect(() => {
+    if (!draft.projectId) {
+      setBranches([]);
+      return;
+    }
+    let cancelled = false;
+    void api<ProjectBranchListResponse>(`/api/projects/${draft.projectId}/branches`)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        const projectBranches = result.branches.map((branch) => branch.name).filter((name) => !name.startsWith("agent-workbench/"));
+        setBranches(projectBranches);
+        setBranchError(undefined);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setBranches([]);
+          setBranchError(error instanceof Error ? error.message : String(error));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [draft.projectId]);
+
+  useEffect(() => {
+    if (!branchMenuOpen) {
+      return;
+    }
+    function closeOnOutsidePointer(event: PointerEvent): void {
+      const target = event.target;
+      if (target instanceof Node && branchPickerRef.current?.contains(target)) {
+        return;
+      }
+      setBranchMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [branchMenuOpen]);
+
+  useEffect(() => {
+    const current = draft.branchName.trim();
+    if (/^new-branch-\d+$/.test(current) && branches.includes(current)) {
+      onChange({
+        ...draft,
+        branchName: nextWorkingBranchName(tasks, draft.projectId, branches),
+      });
+    }
+  }, [branches, draft, onChange, tasks]);
 
   function updateProject(projectId: string): void {
     onChange({
       ...draft,
+      branchName: nextWorkingBranchName(tasks, projectId),
       projectId,
     });
+    setBranchMenuOpen(false);
   }
 
   return (
@@ -4426,6 +4576,45 @@ function NewSessionDialog({
               ))}
             </select>
             {selectedProject ? <small>{selectedProject.path}</small> : null}
+          </label>
+          <label className="field">
+            <span>Session branch</span>
+            <div className="branch-picker" ref={branchPickerRef}>
+              <input
+                placeholder="new-branch-1"
+                value={draft.branchName}
+                onChange={(event) => onChange({ ...draft, branchName: event.currentTarget.value })}
+              />
+              <button
+                aria-expanded={branchMenuOpen}
+                aria-label="Show branches"
+                className="secondary branch-picker-toggle"
+                onClick={() => setBranchMenuOpen((open) => !open)}
+                type="button"
+              >
+                ▾
+              </button>
+              {branchMenuOpen ? (
+                <div className="branch-picker-menu">
+                  {branches.length > 0 ? branches.map((branch) => (
+                    <button
+                      className="secondary"
+                      key={branch}
+                      onClick={() => {
+                        onChange({ ...draft, branchName: branch });
+                        setBranchMenuOpen(false);
+                      }}
+                      type="button"
+                    >
+                      {branch}
+                    </button>
+                  )) : <small>No branches found.</small>}
+                </div>
+              ) : null}
+            </div>
+            <small>Workbench creates this real branch in a dedicated session worktree. Use a new branch name for each session.</small>
+            {branchAlreadyExists ? <small className="error-text">Branch already exists. Choose a new session branch name.</small> : null}
+            {branchError ? <small className="error-text">{branchError}</small> : null}
           </label>
           <label className="field">
             <span>Session name</span>
@@ -4465,7 +4654,7 @@ function NewSessionDialog({
           <button className="secondary" onClick={onCancel} type="button">
             Cancel
           </button>
-          <button disabled={!draft.projectId || !draft.title.trim()} type="submit">
+          <button disabled={!draft.projectId || !draft.title.trim() || !draft.branchName.trim() || branchAlreadyExists} type="submit">
             Create session
           </button>
         </footer>
@@ -4680,26 +4869,22 @@ function SessionActions({
   const busy = busyAction !== undefined;
   const applied = task?.status === "applied";
   const running = isTaskRunning(task);
-  const applyTooltip = "Apply changes from the Agent Workbench isolated worktree to the current active branch in the original repository.";
-  const draftPrTooltip = "Create a draft PR from the original repository's current active branch. Workbench automatically stages, commits, pushes, then creates the draft PR.";
-  const syncTooltip = "Sync the current active branch in the original repository into the Agent Workbench isolated worktree.";
+  const applyTooltip = "Advanced: apply this session branch patch to another branch.";
+  const draftPrTooltip = "Create a draft PR from this session branch. Workbench automatically stages, commits, pushes, then creates the draft PR.";
   if (variant === "changes") {
     return (
       <section className="session-actions" aria-label="Changes actions">
-        <button disabled={!task || !hasDiff || busy} onClick={() => onAction("apply")} title={applyTooltip} type="button">
-          {busyAction === "apply" ? "Applying" : !hasDiff && applied ? "Applied" : "Apply to repo"}
-        </button>
-        <button className="secondary" disabled={!task || busy} onClick={() => onAction("branch_manager")} type="button">
-          Branch Manager
-        </button>
         <button className="secondary" disabled={!task || busy} onClick={() => onAction("delivery")} type="button">
           Delivery
+        </button>
+        <button className="secondary" disabled={!task || busy} onClick={() => onAction("branch_manager")} type="button">
+          Session branch
         </button>
         <button className="secondary" disabled={!task || busy} onClick={() => onAction("snapshot")} type="button">
           {busyAction === "snapshot" ? "Saving" : "Take snapshot"}
         </button>
-        <button className="secondary" disabled={!task || busy} onClick={() => onAction("sync_latest")} title={syncTooltip} type="button">
-          {busyAction === "sync_latest" ? "Syncing" : "Sync to latest"}
+        <button className="secondary" disabled={!task || !hasDiff || busy} onClick={() => onAction("apply")} title={applyTooltip} type="button">
+          {busyAction === "apply" ? "Applying" : !hasDiff && applied ? "Applied" : "Apply patch"}
         </button>
       </section>
     );
@@ -5495,7 +5680,7 @@ function detailDecisionState(overview: SessionOverview): DetailDecisionState | u
   if (overview.latestDelivery.status !== "none") {
     return {
       actionLabel: "Open Changes",
-      explanation: "This session already has delivery output, so the next operator decision is available from the Delivery button beside Branch Manager.",
+      explanation: "This session already has delivery output, so the next operator decision is available from Delivery beside Session branch.",
       label: overviewBlockerText(overview),
       summary: overviewBlockerSecondaryText(overview),
       tab: "changes",
@@ -5918,6 +6103,22 @@ function detailRecommendedActionReason(overview: SessionOverview): string {
   return "Recommended actions reflect the highest-value next move for this session's current delivery and risk state.";
 }
 
+function TerminalProjection({ lines, task }: { lines: string[]; task?: Task }): React.JSX.Element {
+  return (
+    <div className="terminal-projection">
+      <header>
+        <div>
+          <h3>{task ? `${task.title} terminal output` : "Terminal output"}</h3>
+          <small>Read-only projection from the right-side native terminal. Input stays in the terminal panel.</small>
+        </div>
+      </header>
+      <pre aria-label="Projected terminal output">
+        {lines.length > 0 ? lines.join("\n") : "Attach the Agent Terminal on the right to start projecting conversation output here."}
+      </pre>
+    </div>
+  );
+}
+
 function SessionWorkspacePanel({
   applyConflict,
   approvalStates,
@@ -5931,6 +6132,7 @@ function SessionWorkspacePanel({
   onRefreshChanges,
   onSelectTab,
   onSelectSnapshot,
+  onSnapshotsChange,
   panelRef,
   pendingApprovals,
   selectedSnapshotId,
@@ -5952,6 +6154,7 @@ function SessionWorkspacePanel({
   onRefreshChanges: () => Promise<void>;
   onSelectTab: (tab: SessionWorkspaceTab) => void;
   onSelectSnapshot: (snapshotId: string) => void;
+  onSnapshotsChange: (snapshots: SessionSnapshot[]) => void;
   panelRef: React.RefObject<HTMLDivElement | null>;
   pendingApprovals: Set<string>;
   selectedSnapshotId?: string;
@@ -6025,6 +6228,7 @@ function SessionWorkspacePanel({
             onOpenChanges={() => onSelectTab("changes")}
             onRollback={() => onAction("rollback")}
             onSelect={onSelectSnapshot}
+            onSnapshotsChange={onSnapshotsChange}
             selectedSnapshotId={selectedSnapshotId}
             snapshots={snapshots}
             task={task}
@@ -6112,6 +6316,9 @@ function ChangesWorkspace({
   const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<{ path?: string; type: "reload" | "switch" }>();
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [createEntry, setCreateEntry] = useState<{ kind: "directory" | "file"; path: string }>();
+  const [createEntryError, setCreateEntryError] = useState<string>();
+  const [isCreatingEntry, setIsCreatingEntry] = useState(false);
 
   useEffect(() => {
     setExpandedPaths(new Set());
@@ -6276,6 +6483,63 @@ function ChangesWorkspace({
     }
   }
 
+  async function refreshSessionTree(): Promise<SessionTreeEntry[]> {
+    if (!task) {
+      setTreeEntries([]);
+      return [];
+    }
+    const entries = await api<SessionTreeEntry[]>(`/api/sessions/${task.id}/tree`);
+    setTreeEntries(entries);
+    return entries;
+  }
+
+  async function createSessionEntry(): Promise<void> {
+    if (!task || !createEntry || isCreatingEntry) {
+      return;
+    }
+    const nextPath = createEntry.path.trim();
+    if (!nextPath) {
+      setCreateEntry(undefined);
+      setCreateEntryError(undefined);
+      return;
+    }
+    setCreateEntryError(undefined);
+    setIsCreatingEntry(true);
+    try {
+      if (createEntry.kind === "file") {
+        await api<SessionFileContentResponse>(`/api/sessions/${task.id}/files`, {
+          method: "PUT",
+          body: JSON.stringify({
+            content: "",
+            path: nextPath,
+          } satisfies UpdateSessionFileRequest),
+        });
+      } else {
+        await api<SessionTreeEntry>(`/api/sessions/${task.id}/directories`, {
+          method: "POST",
+          body: JSON.stringify({
+            path: nextPath,
+          } satisfies CreateSessionDirectoryRequest),
+        });
+      }
+      await Promise.all([
+        refreshSessionTree(),
+        onRefresh(),
+      ]);
+      setExpandedPaths((current) => expandTreeAncestors(current, nextPath));
+      if (createEntry.kind === "file") {
+        setSelectedPath(nextPath);
+        setReloadVersion((current) => current + 1);
+      }
+      setEditorNotice(`Created ${createEntry.kind === "file" ? "file" : "folder"} ${nextPath}`);
+      setCreateEntry(undefined);
+    } catch (error) {
+      setCreateEntryError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsCreatingEntry(false);
+    }
+  }
+
   function executePendingNavigation(): void {
     if (!pendingNavigation) {
       return;
@@ -6333,6 +6597,34 @@ function ChangesWorkspace({
           <div>
             <h3>Explorer</h3>
             <small>{files.length} changed file{files.length === 1 ? "" : "s"} in this session</small>
+          </div>
+          <div className="changes-explorer-actions" aria-label="Explorer actions">
+            <button
+              className="icon-button"
+              disabled={!task}
+              onClick={() => {
+                setCreateEntry({ kind: "file", path: "" });
+                setCreateEntryError(undefined);
+              }}
+              title="New file"
+              type="button"
+            >
+              <span aria-hidden="true" className="explorer-icon new-file" />
+              <span className="sr-only">New file</span>
+            </button>
+            <button
+              className="icon-button"
+              disabled={!task}
+              onClick={() => {
+                setCreateEntry({ kind: "directory", path: "" });
+                setCreateEntryError(undefined);
+              }}
+              title="New folder"
+              type="button"
+            >
+              <span aria-hidden="true" className="explorer-icon new-folder" />
+              <span className="sr-only">New folder</span>
+            </button>
           </div>
         </header>
         {treeError ? <div className="changes-feedback error">{treeError}</div> : null}
@@ -6460,6 +6752,78 @@ function ChangesWorkspace({
           </details>
         ) : null}
       </div>
+      {createEntry ? (
+        <CreateExplorerEntryModal
+          busy={isCreatingEntry}
+          error={createEntryError}
+          kind={createEntry.kind}
+          onCancel={() => {
+            if (!isCreatingEntry) {
+              setCreateEntry(undefined);
+              setCreateEntryError(undefined);
+            }
+          }}
+          onChange={(path) => setCreateEntry((current) => current ? { ...current, path } : current)}
+          onSubmit={() => void createSessionEntry()}
+          path={createEntry.path}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function CreateExplorerEntryModal({
+  busy,
+  error,
+  kind,
+  onCancel,
+  onChange,
+  onSubmit,
+  path,
+}: {
+  busy: boolean;
+  error?: string;
+  kind: "directory" | "file";
+  onCancel: () => void;
+  onChange: (path: string) => void;
+  onSubmit: () => void;
+  path: string;
+}): React.JSX.Element {
+  const title = kind === "file" ? "New file" : "New folder";
+  return (
+    <div className="modal-backdrop nested" role="presentation">
+      <form
+        aria-labelledby="create-explorer-entry-title"
+        className="modal compact-modal"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        <header>
+          <h2 id="create-explorer-entry-title">{title}</h2>
+          <p>Create it inside the current session worktree.</p>
+        </header>
+        <label className="field">
+          <span>Relative path</span>
+          <input
+            autoFocus
+            disabled={busy}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={kind === "file" ? "src/example.ts" : "src/components"}
+            value={path}
+          />
+        </label>
+        {error ? <div className="changes-feedback error">{error}</div> : null}
+        <footer>
+          <button className="secondary" disabled={busy} onClick={onCancel} type="button">
+            Cancel
+          </button>
+          <button disabled={busy} type="submit">
+            {busy ? "Creating" : "Create"}
+          </button>
+        </footer>
+      </form>
     </div>
   );
 }
@@ -7223,15 +7587,15 @@ function detailFocusText(tab: SessionWorkspaceTab, overview: SessionOverview): s
         return "This session already has a PR-ready delivery path. Review changed files and delivery outputs from Changes before shipping.";
       }
       if (overview.latestDelivery.status === "compare_ready" || overview.latestDelivery.status === "pushed") {
-        return "This session is pushed or compare-ready. Use Delivery beside Branch Manager to confirm branch, compare, and PR outputs.";
+        return "This session is pushed or compare-ready. Use Delivery beside Session branch to confirm branch, compare, and PR outputs.";
       }
       if (overview.latestDelivery.status === "branch_ready") {
-        return "This session has a clean branch outcome. Use Delivery beside Branch Manager to push, export, or open a PR.";
+        return "This session has a clean branch outcome. Use Delivery beside Session branch to push, export, or open a PR.";
       }
       if (overview.conflictFiles.length > 0 || overview.overlapFiles.length > 0) {
         return "Review conflicts, overlaps, diff scope, and manual edits before applying changes back to the original repository.";
       }
-      return "Review changed files, edit manually if needed, then apply, branch, snapshot, or keep iterating.";
+      return "Review changed files, edit manually if needed, then deliver, snapshot, apply as a patch, or keep iterating.";
     case "snapshots":
       return overview.snapshotCount > 0
         ? "Use snapshots as restore points before risky apply or delivery actions."
@@ -7298,28 +7662,11 @@ function ApplyConflictPanel({
 function BranchManager({ onTaskUpdated, task }: { onTaskUpdated: (task: Task) => void; task?: Task }): React.JSX.Element {
   const fallbackBranches = useMemo(() => sessionBranches(task), [task]);
   const [branches, setBranches] = useState<SessionBranch[]>(fallbackBranches);
-  const branchSignature = useMemo(
-    () => branches.map((branch) => `${branch.id}:${branch.name}:${branch.applySelected ? "1" : "0"}:${branch.role}`).join("|"),
-    [branches],
-  );
-  const [draftNames, setDraftNames] = useState<Record<string, string>>({});
-  const [newBranchName, setNewBranchName] = useState("");
+  const sessionBranch = branches.find((branch) => branch.applySelected) ?? branches[0];
+  const [draftName, setDraftName] = useState(sessionBranch?.name ?? task?.worktreeBranch ?? "");
   const [notice, setNotice] = useState<string>();
-  const [page, setPage] = useState(0);
-  const [busy, setBusy] = useState<string>();
-  const [pendingRemoveId, setPendingRemoveId] = useState<string>();
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [search, setSearch] = useState("");
-  const filteredBranches = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) {
-      return branches;
-    }
-    return branches.filter((branch) => branch.name.toLowerCase().includes(query));
-  }, [branches, search]);
-  const pageSize = 10;
-  const pageCount = Math.max(1, Math.ceil(filteredBranches.length / pageSize));
-  const visibleBranches = filteredBranches.slice(page * pageSize, page * pageSize + pageSize);
 
   useEffect(() => {
     setBranches(fallbackBranches);
@@ -7349,207 +7696,77 @@ function BranchManager({ onTaskUpdated, task }: { onTaskUpdated: (task: Task) =>
   }, [task?.id]);
 
   useEffect(() => {
-    setDraftNames(Object.fromEntries(branches.map((branch) => [branch.id, branch.name])));
-    setPendingRemoveId(undefined);
+    setDraftName(sessionBranch?.name ?? task?.worktreeBranch ?? "");
     setError(undefined);
     setNotice(undefined);
-    setPage(0);
-  }, [branchSignature, task?.id]);
+  }, [sessionBranch?.id, sessionBranch?.name, task?.id, task?.worktreeBranch]);
 
-  useEffect(() => {
-    setPage(0);
-  }, [search]);
-
-  async function updateBranch(branch: SessionBranch, input: { applySelected?: boolean; name?: string }): Promise<void> {
-    if (!task) {
+  async function renameBranch(): Promise<void> {
+    const nextName = draftName.trim();
+    if (!task || !sessionBranch || !nextName || nextName === sessionBranch.name) {
       return;
     }
-    setBusy(branch.id);
+    setBusy(true);
     setError(undefined);
     setNotice(undefined);
     try {
-      const result = await api<SessionBranchListResponse>(`/api/sessions/${task.id}/branches/${encodeURIComponent(branch.id)}`, {
+      const result = await api<SessionBranchListResponse>(`/api/sessions/${task.id}/branches/${encodeURIComponent(sessionBranch.id)}`, {
         method: "PATCH",
-        body: JSON.stringify(input),
+        body: JSON.stringify({ name: nextName }),
       });
       setBranches(result.branches);
       onTaskUpdated(result.task);
-      if (input.name !== undefined && input.name.trim() !== branch.name) {
-        setNotice(`Branch renamed successfully. Current branch name is ${input.name.trim()}.`);
-      } else if (input.applySelected) {
-        setNotice(`Switched to ${branch.name}.`);
-      }
+      setNotice(`Session branch renamed to ${nextName}.`);
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : String(updateError));
     } finally {
-      setBusy(undefined);
+      setBusy(false);
     }
   }
 
-  async function createBranch(): Promise<void> {
-    if (!task) {
-      return;
-    }
-    setBusy("create");
-    setError(undefined);
-    setNotice(undefined);
-    try {
-      const result = await api<SessionBranchListResponse>(`/api/sessions/${task.id}/branches`, {
-        method: "POST",
-        body: JSON.stringify({ name: newBranchName.trim() || undefined }),
-      });
-      setBranches(result.branches);
-      onTaskUpdated(result.task);
-      const active = result.branches.find((branch) => branch.applySelected);
-      setNotice(`Branch created and switched${active ? ` to ${active.name}` : ""}.`);
-      setNewBranchName("");
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : String(createError));
-    } finally {
-      setBusy(undefined);
-    }
-  }
-
-  async function removeBranch(branch: SessionBranch): Promise<void> {
-    if (!task) {
-      return;
-    }
-    setBusy(branch.id);
-    setError(undefined);
-    setNotice(undefined);
-    try {
-      const result = await api<SessionBranchListResponse>(`/api/sessions/${task.id}/branches/${encodeURIComponent(branch.id)}`, { method: "DELETE" });
-      setBranches(result.branches);
-      onTaskUpdated(result.task);
-      setNotice(`Removed branch ${branch.name}.`);
-      setPendingRemoveId(undefined);
-    } catch (removeError) {
-      setError(removeError instanceof Error ? removeError.message : String(removeError));
-    } finally {
-      setBusy(undefined);
-    }
-  }
+  const changed = draftName.trim() !== (sessionBranch?.name ?? "");
 
   return (
     <section className="branch-manager">
       <header>
         <div>
-          <h3>Branch Manager</h3>
-          <p>Manage branches in the original project repository. Active is the branch with `*` in `git branch`; Apply targets that branch.</p>
+          <h3>Session branch</h3>
+          <p>This session owns one real branch checked out in one isolated worktree. Create another branch by creating another session.</p>
         </div>
       </header>
-      <div className="branch-toolbar">
-        <label className="field">
-          <span>Search</span>
-          <input placeholder="keyword" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
-        </label>
-        <label className="field">
-          <span>New branch</span>
-          <input placeholder="feature/name" value={newBranchName} onChange={(event) => setNewBranchName(event.currentTarget.value)} />
-        </label>
-        <button className="secondary" disabled={!task || busy === "create"} onClick={() => void createBranch()} type="button">
-          {busy === "create" ? "Creating" : "Create"}
-        </button>
-      </div>
       {error ? <p className="branch-manager-error">{error}</p> : null}
       {notice ? <p className="branch-manager-notice">{notice}</p> : null}
-      <div className="branch-table" role="table" aria-label="Session branches">
-        <div className="branch-row branch-row-head" role="row">
-          <span role="columnheader">Created at</span>
-          <span role="columnheader">Active</span>
-          <span role="columnheader">Branch name</span>
-          <span role="columnheader">Actions</span>
-        </div>
-        {visibleBranches.map((branch) => {
-          const draftName = draftNames[branch.id] ?? branch.name;
-          const changed = draftName.trim() !== branch.name;
-          const removing = pendingRemoveId === branch.id;
-          const removeBlockedReason = branchRemoveBlockedReason(branch);
-          return (
-            <div className="branch-row" key={branch.id} role="row">
-              <span className="branch-created-at">{formatDateTime(branch.createdAt)}</span>
-              <span className={`branch-active-marker ${branch.applySelected ? "active" : ""}`} title={branch.applySelected ? "Current branch" : ""}>
-                {branch.applySelected ? "✓" : ""}
-              </span>
-              <div className="branch-name-cell">
-                <input
-                  className="branch-name-input"
-                  disabled={!task || busy === branch.id}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    setDraftNames((current) => ({ ...current, [branch.id]: value }));
-                  }}
-                  spellCheck={false}
-                  value={draftName}
-                />
-                {branch.checkedOutPath ? (
-                  <small title={branch.checkedOutPath}>
-                    {branch.checkedOutHere ? "Checked out in this session" : `Checked out at ${truncateMiddle(branch.checkedOutPath, 56)}`}
-                  </small>
-                ) : null}
-              </div>
-              <div className="branch-row-actions">
-                <button
-                  className="secondary compact-button"
-                  disabled={!task || !changed || busy === branch.id}
-                  onClick={() => void updateBranch(branch, { name: draftName })}
-                  type="button"
-                >
-                  Rename
-                </button>
-                <button
-                  className="secondary compact-button"
-                  disabled={!task || branch.applySelected || busy === branch.id}
-                  onClick={() => void updateBranch(branch, { applySelected: true })}
-                  type="button"
-                >
-                  Switch
-                </button>
-                {removing ? (
-                  <>
-                    <button
-                      className="danger compact-button"
-                      disabled={busy === branch.id || Boolean(removeBlockedReason)}
-                      onClick={() => void removeBranch(branch)}
-                      title={removeBlockedReason}
-                      type="button"
-                    >
-                      Confirm
-                    </button>
-                    <button className="secondary compact-button" disabled={busy === branch.id} onClick={() => setPendingRemoveId(undefined)} type="button">
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    className="secondary compact-button"
-                    disabled={!task || busy === branch.id || Boolean(removeBlockedReason)}
-                    onClick={() => setPendingRemoveId(branch.id)}
-                    title={removeBlockedReason}
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        {visibleBranches.length === 0 ? <p className="empty branch-empty">No branches match this search.</p> : null}
+      <div className="branch-table session-branch-summary" role="group" aria-label="Session branch">
+        <label className="field">
+          <span>Branch name</span>
+          <div className="inline-field-action">
+            <input
+              className="branch-name-input"
+              disabled={!task || !sessionBranch || busy}
+              onChange={(event) => setDraftName(event.currentTarget.value)}
+              spellCheck={false}
+              value={draftName}
+            />
+            <button className="secondary" disabled={!task || !sessionBranch || !changed || busy || !draftName.trim()} onClick={() => void renameBranch()} type="button">
+              {busy ? "Renaming" : "Rename"}
+            </button>
+          </div>
+        </label>
+        <dl className="session-branch-meta">
+          <div>
+            <dt>Base</dt>
+            <dd>{task?.baseBranch ?? "unknown"}</dd>
+          </div>
+          <div>
+            <dt>Worktree</dt>
+            <dd title={task?.worktreePath}>{task?.worktreePath ? truncateMiddle(task.worktreePath, 96) : "No worktree"}</dd>
+          </div>
+          <div>
+            <dt>Created</dt>
+            <dd>{sessionBranch?.createdAt ? formatDateTime(sessionBranch.createdAt) : "unknown"}</dd>
+          </div>
+        </dl>
       </div>
-      {filteredBranches.length > pageSize ? (
-        <div className="branch-pagination">
-          <button className="secondary compact-button" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))} type="button">
-            Previous
-          </button>
-          <span>
-            Page {page + 1} / {pageCount}
-          </span>
-          <button className="secondary compact-button" disabled={page >= pageCount - 1} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))} type="button">
-            Next
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -7573,8 +7790,8 @@ function BranchManagerDialog({
         role="dialog"
       >
         <header>
-          <h2 id="branch-manager-title">Branch Manager</h2>
-          <p>Branches are managed inside this session worktree.</p>
+          <h2 id="branch-manager-title">Session branch</h2>
+          <p>One session maps to one branch and one isolated worktree.</p>
         </header>
         <BranchManager onTaskUpdated={onTaskUpdated} task={task} />
         <footer>
@@ -7585,16 +7802,6 @@ function BranchManagerDialog({
       </section>
     </div>
   );
-}
-
-function branchRemoveBlockedReason(branch: SessionBranch): string | undefined {
-  if (branch.checkedOutHere) {
-    return "Switch the original repository to another branch before removing this branch.";
-  }
-  if (branch.checkedOutPath) {
-    return `This branch is checked out at ${branch.checkedOutPath}. Switch that worktree/repository to another branch, or remove the owning Agent Workbench session first.`;
-  }
-  return undefined;
 }
 
 function DeliveryDialog({
@@ -7695,12 +7902,12 @@ function DeliveryDialog({
         >
           <header>
             <h2 id="delivery-title">Delivery</h2>
-            <p>Stage, commit, push, and open a draft PR from the original repository's active branch.</p>
+            <p>Stage, commit, push, and open a draft PR from this session branch.</p>
           </header>
           <div className="delivery-modal-controls">
             <section className="delivery-target-panel">
               <div>
-                <span>Repository</span>
+                <span>Worktree</span>
                 <strong title={target?.projectPath}>{target?.projectPath ?? "Loading..."}</strong>
               </div>
               <div>
@@ -7733,7 +7940,7 @@ function DeliveryDialog({
                 className="secondary"
                 disabled={busy || !target?.currentBranch}
                 onClick={() => onAction("create_pr", { remote })}
-                title="Create a draft PR from the original repository's current active branch. Workbench automatically stages, commits, pushes, then creates the draft PR."
+                title="Create a draft PR from this session branch. Workbench automatically stages, commits, pushes, then creates the draft PR."
                 type="button"
               >
                 {busyAction === "create_pr" ? "Creating" : "Draft PR"}
@@ -7816,11 +8023,11 @@ function StageFilesDialog({
       >
         <header>
           <h2 id="stage-files-title">Stage files</h2>
-          <p>Select which changed files should be added to the original repository index.</p>
+          <p>Select which changed files should be added to this session branch index.</p>
         </header>
         <div className="stage-files-meta">
           <div>
-            <span>Repository</span>
+            <span>Worktree</span>
             <strong title={target?.projectPath}>{target?.projectPath ?? "unknown"}</strong>
           </div>
           <div>
@@ -8008,6 +8215,7 @@ function SnapshotList({
   onOpenChanges,
   onRollback,
   onSelect,
+  onSnapshotsChange,
   selectedSnapshotId,
   snapshots,
   task,
@@ -8017,12 +8225,19 @@ function SnapshotList({
   onOpenChanges: () => void;
   onRollback: () => void;
   onSelect: (snapshotId: string) => void;
+  onSnapshotsChange: (snapshots: SessionSnapshot[]) => void;
   selectedSnapshotId?: string;
   snapshots: SessionSnapshot[];
   task?: Task;
 }): React.JSX.Element {
   const ordered = [...snapshots].reverse();
   const selected = snapshots.find((snapshot) => snapshot.id === selectedSnapshotId) ?? snapshots.at(-1);
+  const [editingId, setEditingId] = useState<string>();
+  const [editDescription, setEditDescription] = useState("");
+  const [editError, setEditError] = useState<string>();
+  const [editLabel, setEditLabel] = useState("");
+  const [mutatingId, setMutatingId] = useState<string>();
+  const [pendingDeleteId, setPendingDeleteId] = useState<string>();
   const [selectedPatch, setSelectedPatch] = useState<SessionSnapshotPatchResponse>();
   const [patchError, setPatchError] = useState<string>();
   const [isPatchLoading, setIsPatchLoading] = useState(false);
@@ -8058,6 +8273,67 @@ function SnapshotList({
     };
   }, [selected?.id, task?.id]);
 
+  function startEdit(snapshot: SessionSnapshot): void {
+    setEditingId(snapshot.id);
+    setEditLabel(snapshot.label);
+    setEditDescription(snapshot.description ?? "");
+    setEditError(undefined);
+    setPendingDeleteId(undefined);
+  }
+
+  async function saveEdit(snapshot: SessionSnapshot): Promise<void> {
+    if (!task) {
+      return;
+    }
+    const label = editLabel.trim();
+    if (!label) {
+      setEditError("Snapshot title cannot be empty.");
+      return;
+    }
+    setMutatingId(snapshot.id);
+    setEditError(undefined);
+    try {
+      const updated = await api<SessionSnapshot>(`/api/sessions/${task.id}/snapshots/${snapshot.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          description: editDescription.trim() || undefined,
+          label,
+        } satisfies UpdateSessionSnapshotRequest),
+      });
+      onSnapshotsChange(snapshots.map((item) => (item.id === updated.id ? updated : item)));
+      setEditingId(undefined);
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setMutatingId(undefined);
+    }
+  }
+
+  async function deleteSnapshot(snapshot: SessionSnapshot): Promise<void> {
+    if (!task) {
+      return;
+    }
+    setMutatingId(snapshot.id);
+    setEditError(undefined);
+    try {
+      await api<{ ok: true }>(`/api/sessions/${task.id}/snapshots/${snapshot.id}`, { method: "DELETE" });
+      const nextSnapshots = snapshots.filter((item) => item.id !== snapshot.id);
+      onSnapshotsChange(nextSnapshots);
+      if (selectedSnapshotId === snapshot.id) {
+        const nextSelected = nextSnapshots.at(-1);
+        if (nextSelected) {
+          onSelect(nextSelected.id);
+        }
+      }
+      setPendingDeleteId(undefined);
+      setEditingId(undefined);
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setMutatingId(undefined);
+    }
+  }
+
   return (
     <section className="snapshot-list">
       <header>
@@ -8074,23 +8350,68 @@ function SnapshotList({
         </button>
       </header>
       <div className="snapshot-timeline">
-        {ordered.map((snapshot) => (
-          <button
-            className={`snapshot-item ${snapshot.id === selected?.id ? "selected" : ""}`}
-            key={snapshot.id}
-            onClick={() => onSelect(snapshot.id)}
-            type="button"
-          >
-            <span className={`snapshot-kind ${snapshot.kind}`}>{snapshotKindLabel(snapshot.kind)}</span>
-            <strong>{snapshot.label}</strong>
-            <small>{new Date(snapshot.createdAt).toLocaleString()}</small>
-            {snapshot.description ? <p className="snapshot-description">{snapshot.description}</p> : null}
-            <span>
-              {snapshot.summary.filesChanged} files · +{snapshot.summary.insertions} · -{snapshot.summary.deletions}
-            </span>
-            <code title={snapshot.patchPath}>{snapshot.patchPath}</code>
-          </button>
-        ))}
+        {ordered.map((snapshot) => {
+          const editing = editingId === snapshot.id;
+          const deleting = pendingDeleteId === snapshot.id;
+          return (
+            <article className={`snapshot-item ${snapshot.id === selected?.id ? "selected" : ""}`} key={snapshot.id}>
+              {editing ? (
+                <div className="snapshot-edit-form">
+                  <label className="field">
+                    <span>Title</span>
+                    <input disabled={mutatingId === snapshot.id} value={editLabel} onChange={(event) => setEditLabel(event.currentTarget.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Description</span>
+                    <textarea disabled={mutatingId === snapshot.id} value={editDescription} onChange={(event) => setEditDescription(event.currentTarget.value)} />
+                  </label>
+                  {editError ? <div className="changes-feedback error">{editError}</div> : null}
+                  <div className="snapshot-item-actions">
+                    <button className="secondary compact-button" disabled={mutatingId === snapshot.id} onClick={() => void saveEdit(snapshot)} type="button">
+                      {mutatingId === snapshot.id ? "Saving" : "Save"}
+                    </button>
+                    <button className="secondary compact-button" disabled={mutatingId === snapshot.id} onClick={() => setEditingId(undefined)} type="button">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button className="snapshot-select-button" onClick={() => onSelect(snapshot.id)} type="button">
+                    <span className={`snapshot-kind ${snapshot.kind}`}>{snapshotKindLabel(snapshot.kind)}</span>
+                    <strong>{snapshot.label}</strong>
+                    <small>{new Date(snapshot.createdAt).toLocaleString()}</small>
+                    {snapshot.description ? <p className="snapshot-description">{snapshot.description}</p> : null}
+                    <span>
+                      {snapshot.summary.filesChanged} files · +{snapshot.summary.insertions} · -{snapshot.summary.deletions}
+                    </span>
+                    <code title={snapshot.patchPath}>{snapshot.patchPath}</code>
+                  </button>
+                  <div className="snapshot-item-actions">
+                    <button className="secondary compact-button" disabled={busy || mutatingId === snapshot.id} onClick={() => startEdit(snapshot)} type="button">
+                      Edit
+                    </button>
+                    {deleting ? (
+                      <>
+                        <button className="danger compact-button" disabled={mutatingId === snapshot.id} onClick={() => void deleteSnapshot(snapshot)} type="button">
+                          Confirm delete
+                        </button>
+                        <button className="secondary compact-button" disabled={mutatingId === snapshot.id} onClick={() => setPendingDeleteId(undefined)} type="button">
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button className="secondary compact-button" disabled={busy || mutatingId === snapshot.id} onClick={() => setPendingDeleteId(snapshot.id)} type="button">
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                  {editError && (editingId === snapshot.id || pendingDeleteId === snapshot.id) ? <div className="changes-feedback error">{editError}</div> : null}
+                </>
+              )}
+            </article>
+          );
+        })}
       </div>
       <SnapshotComparePanel
         currentDiff={currentDiff}
@@ -8314,7 +8635,7 @@ function snapshotKindLabel(kind: SessionSnapshot["kind"]): string {
     case "manual":
       return "Manual";
     case "rollback":
-      return "Rollback";
+      return "Safety";
   }
 }
 
@@ -8416,6 +8737,7 @@ function ConfirmSessionActionDialog({
   );
   const [targetBranchInput, setTargetBranchInput] = useState(applyTarget?.originalBranch || "");
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const branchPickerRef = useRef<HTMLDivElement | null>(null);
   const normalizedTargetBranch = targetBranchInput.trim();
   const targetBranchExists = normalizedTargetBranch ? branchOptions.includes(normalizedTargetBranch) : false;
   const title =
@@ -8436,6 +8758,21 @@ function ConfirmSessionActionDialog({
         : "This commits and pushes the isolated worktree branch with git, then creates a draft pull request through the current GitHub PR connector. Today that connector uses gh.";
   const label = action === "apply" ? "Confirm" : action === "sync_latest" ? "Sync to latest" : action === "push_branch" ? "Push branch" : "Create draft PR";
   const confirmDisabled = busy || (action === "apply" && !normalizedTargetBranch);
+
+  useEffect(() => {
+    if (!branchMenuOpen) {
+      return;
+    }
+    function closeOnOutsidePointer(event: PointerEvent): void {
+      const target = event.target;
+      if (target instanceof Node && branchPickerRef.current?.contains(target)) {
+        return;
+      }
+      setBranchMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [branchMenuOpen]);
 
   return (
     <div className="modal-backdrop" onMouseDown={onCancel}>
@@ -8464,7 +8801,7 @@ function ConfirmSessionActionDialog({
                   <code>{applyTarget?.worktreePath || task.worktreePath || "isolated session worktree"}</code>
                 ) : (
                   <div className="confirm-branch-target">
-                    <div className="branch-picker">
+                    <div className="branch-picker" ref={branchPickerRef}>
                       <input
                         aria-label="Target branch"
                         disabled={busy}
@@ -10088,6 +10425,24 @@ function sessionCapableBackends(backends: BackendStatus[]): BackendStatus[] {
 
 function nextSessionTitle(tasks: Task[], projectId: string): string {
   return uniqueSessionTitle(tasks, projectId, "New Session");
+}
+
+function nextWorkingBranchName(tasks: Task[], projectId: string, projectBranches: string[] = []): string {
+  const existing = new Set(
+    [
+      ...projectBranches,
+      ...tasks
+        .filter((task) => task.projectId === projectId)
+        .flatMap((task) => [task.baseBranch, ...(task.branches ?? []).map((branch) => branch.name)]),
+    ].filter((name): name is string => Boolean(name)),
+  );
+  for (let index = 1; index < 1000; index += 1) {
+    const name = `new-branch-${index}`;
+    if (!existing.has(name)) {
+      return name;
+    }
+  }
+  return `new-branch-${Date.now()}`;
 }
 
 function uniqueSessionTitle(tasks: Task[], projectId: string, requestedTitle: string): string {

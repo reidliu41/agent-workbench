@@ -211,6 +211,16 @@ export interface CreateSessionSnapshotRequest {
   label?: string;
 }
 
+export interface UpdateSessionSnapshotRequest {
+  description?: string;
+  label?: string;
+}
+
+export interface RollbackSessionResponse {
+  rollbackSnapshot: SessionSnapshot;
+  safetySnapshot?: SessionSnapshot;
+}
+
 export interface SessionSnapshotPatchResponse {
   patchText: string;
   snapshot: SessionSnapshot;
@@ -498,6 +508,10 @@ export interface UpdateSessionFileRequest {
   path: string;
 }
 
+export interface CreateSessionDirectoryRequest {
+  path: string;
+}
+
 export interface UploadSessionImageRequest {
   contentBase64: string;
   fileName?: string;
@@ -517,6 +531,8 @@ export interface RespondApprovalRequest {
 }
 
 export type SessionHealth = "ok" | "running" | "attention" | "blocked" | "stuck" | "failed";
+
+export type SessionState = "ready" | "running" | "review" | "needs_action" | "detached" | "failed";
 
 export type SessionRisk = "low" | "medium" | "high";
 
@@ -583,6 +599,8 @@ export interface SessionOverview {
   runtimeMs: number;
   snapshotCount: number;
   stage: "running" | "terminal" | "approval" | "review" | "conflict" | "applied" | "branch" | "pr" | "failed" | "idle";
+  state: SessionState;
+  stateReason: string;
   stuck: boolean;
   task: Task;
   terminal?: {

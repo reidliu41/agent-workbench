@@ -49,6 +49,8 @@ export interface WorkbenchStore {
   appendSnapshot(snapshot: SessionSnapshot): Promise<void>;
   getSnapshot(taskId: string, snapshotId: string): Promise<SessionSnapshot | undefined>;
   listSnapshots(taskId: string): Promise<SessionSnapshot[]>;
+  updateSnapshot(snapshot: SessionSnapshot): Promise<SessionSnapshot>;
+  deleteSnapshot(taskId: string, snapshotId: string): Promise<void>;
   health(): Promise<LocalStoreHealth>;
 }
 
@@ -186,6 +188,25 @@ export class LocalStore implements WorkbenchStore {
     await this.writeQueue;
     const data = await this.read();
     return (data.snapshots ?? []).filter((snapshot) => snapshot.taskId === taskId);
+  }
+
+  async updateSnapshot(snapshot: SessionSnapshot): Promise<SessionSnapshot> {
+    await this.mutate((data) => {
+      data.snapshots ??= [];
+      const index = data.snapshots.findIndex((item) => item.taskId === snapshot.taskId && item.id === snapshot.id);
+      if (index < 0) {
+        throw new Error("Snapshot not found.");
+      }
+      data.snapshots[index] = snapshot;
+    });
+    return snapshot;
+  }
+
+  async deleteSnapshot(taskId: string, snapshotId: string): Promise<void> {
+    await this.mutate((data) => {
+      data.snapshots ??= [];
+      data.snapshots = data.snapshots.filter((snapshot) => snapshot.taskId !== taskId || snapshot.id !== snapshotId);
+    });
   }
 
   async health(): Promise<LocalStoreHealth> {

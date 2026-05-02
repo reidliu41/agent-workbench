@@ -45,7 +45,7 @@ Important UI priorities:
 - local token auth.
 - static web asset serving.
 - filesystem and project directory APIs.
-- Gemini and terminal socket management.
+- native agent and terminal socket management.
 
 ## Core
 
@@ -57,7 +57,7 @@ Important UI priorities:
 - event bus,
 - sessions,
 - snapshots,
-- apply/sync/delivery.
+- apply patch/delivery.
 
 ## Protocol
 
@@ -71,12 +71,13 @@ Current:
 
 - Gemini ACP,
 - Gemini one-shot,
+- native Gemini terminal,
+- native Codex terminal,
+- native Claude Code terminal,
 - generic PTY.
 
 Future:
 
-- Codex,
-- Claude Code,
 - OpenCode,
 - other CLI agents.
 

@@ -11,25 +11,28 @@ Implemented core:
 - Session Overview,
 - Gemini ACP backend,
 - Gemini terminal attach,
+- Codex terminal attach,
+- Claude Code terminal attach,
 - isolated worktrees,
 - Changes review workspace,
 - editable file content,
 - snapshots,
-- apply to repo,
-- sync to latest,
-- branch manager,
+- one session -> one branch -> one isolated worktree,
+- apply patch fallback,
+- session branch controls,
 - delivery add/commit/push/draft PR,
 - voice input,
 - clipboard screenshot upload,
+- terminal split projection,
 - diagnostics.
 
 ## Current Priority
 
-Make the current Gemini-first workflow reliable and understandable.
+Make the current native-CLI workflow reliable and understandable.
 
 Immediate areas:
 
-1. polish session creation and branch semantics,
+1. polish one-session/one-branch semantics,
 2. improve branch compare summaries for Delivery,
 3. harden Draft PR with better base/head detection,
 4. improve UI feedback and tooltips,
@@ -43,7 +46,7 @@ Immediate areas:
 - create sessions,
 - search sessions,
 - remove sessions,
-- import Gemini sessions,
+- import native Gemini, Codex, and Claude sessions,
 - overview state,
 - stuck/blocked visibility,
 - independent terminal attach.
@@ -61,11 +64,10 @@ Immediate areas:
 ### Safety
 
 - isolated worktree,
-- apply confirmation,
-- sync confirmation,
+- apply patch confirmation,
 - snapshots,
 - rollback,
-- branch manager warnings.
+- session branch warnings.
 
 ### Delivery
 

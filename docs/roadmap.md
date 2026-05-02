@@ -1,8 +1,8 @@
 # Roadmap
 
-## v0.1: Gemini Workbench
+## v0.1: Native CLI Workbench
 
-Goal: make Gemini CLI usable from a local web workbench with strong review and delivery.
+Goal: make native coding CLIs usable from a local web workbench with strong review and delivery.
 
 Included:
 
@@ -12,19 +12,23 @@ Included:
 - Session Overview dashboard,
 - Gemini ACP backend,
 - native Gemini terminal attach,
+- native Codex terminal attach,
+- native Claude Code terminal attach,
 - Changes review/edit workspace,
 - snapshots,
-- apply/sync,
-- branch manager,
+- one session -> one branch -> one isolated worktree,
 - delivery add/commit/push/draft PR,
 - voice input,
-- screenshot upload.
+- screenshot upload,
+- terminal split projection.
 
 ## v0.2: Reliability And Polish
 
 Focus:
 
 - stronger branch/delivery tests,
+- reinforce the one implementation session -> one branch/worktree model,
+- planning-session workflow for splitting large work into smaller branch/session tasks,
 - clearer compare summaries,
 - better terminal lifecycle cleanup,
 - better session recovery,
@@ -32,21 +36,20 @@ Focus:
 - improved error remediation,
 - HTTPS/local certificate option for browser permissions.
 
-## v0.3: More Agent Backends
+## v0.3: More Agent Backends And Policies
 
 Candidate backends:
 
-- Codex,
-- Claude Code,
 - OpenCode,
 - custom CLI profiles.
 
-Goal: prove the Workbench workflow works across multiple agents without losing review and safety.
+Goal: expand the Workbench workflow across more agents without losing review and safety.
 
 ## v0.4: Team-Grade Local Workflow
 
 Focus:
 
+- optional PR-slice recovery workflow for applying selected files from one session to multiple branches,
 - stronger audit exports,
 - project profiles,
 - environment profiles,
@@ -58,8 +61,8 @@ Focus:
 
 Expected:
 
-- Gemini workflow stable for daily use,
-- at least one additional backend path,
+- Gemini, Codex, and Claude native terminal workflows stable for daily use,
+- at least one additional backend path beyond those three,
 - reliable session dashboard,
 - reliable review/edit/delivery,
 - clear documentation,

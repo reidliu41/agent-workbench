@@ -88,8 +88,8 @@ Workbench owns:
 - isolated worktrees,
 - diff review,
 - snapshots,
-- apply,
-- branch and delivery workflow.
+- apply patch fallback,
+- session branch and delivery workflow.
 
 Existing Codex sessions can be imported from Codex rollout metadata and linked to a Workbench session. Later attaches use `codex resume --cd <session-worktree> <id>`.
 
@@ -109,7 +109,7 @@ Later attaches reopen it with:
 claude --resume <id>
 ```
 
-This keeps Claude Code slash commands, plugins, skills, hooks, permissions, and model controls inside Claude Code while Workbench provides dashboard, review, snapshots, apply, and delivery.
+This keeps Claude Code slash commands, plugins, skills, hooks, permissions, and model controls inside Claude Code while Workbench provides dashboard, review, snapshots, apply patch fallback, and delivery.
 
 Existing Claude Code sessions can be imported from Claude project JSONL history and linked to a Workbench session. Later attaches use `claude --resume <id>`.
 
@@ -153,5 +153,5 @@ Future adapters should reuse the same Workbench surfaces:
 The agent backend may differ, but the operator workflow should stay consistent:
 
 ```text
-run session -> review changes -> snapshot -> apply -> deliver
+run session -> review changes -> snapshot -> deliver
 ```

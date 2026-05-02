@@ -14,7 +14,7 @@ Local Node Gateway
   Fastify
   |
   +-- Workbench Orchestrator
-  +-- Gemini adapters
+  +-- Agent adapters
   +-- PTY terminals
   +-- Git client
   +-- Storage
@@ -23,7 +23,7 @@ Local Node Gateway
 Local machine
   git repositories
   isolated worktrees
-  Gemini CLI
+  Gemini CLI / Codex CLI / Claude Code
 ```
 
 The browser never directly reads local files or spawns local processes. All privileged actions go through the local gateway.
@@ -87,7 +87,7 @@ Responsibilities:
 - snapshot UI,
 - Delivery UI,
 - Diagnostics UI,
-- Gemini terminal attach,
+- native agent terminal attach,
 - voice input,
 - clipboard image upload.
 
@@ -116,8 +116,7 @@ Core orchestration:
 - manage tasks,
 - normalize events,
 - collect diffs,
-- apply changes,
-- sync worktrees,
+- apply patch fallback,
 - manage snapshots,
 - manage delivery,
 - run git commands.
@@ -128,6 +127,9 @@ Agent backend adapters:
 
 - Gemini ACP backend,
 - one-shot Gemini fallback,
+- native Gemini terminal,
+- native Codex terminal,
+- native Claude Code terminal,
 - generic PTY backend.
 
 The adapter boundary is intentionally capability-based so future agents can be added without rewriting the UI.
@@ -135,19 +137,19 @@ The adapter boundary is intentionally capability-based so future agents can be a
 ## Worktree Flow
 
 1. User creates a session.
-2. User chooses a working branch.
-3. Workbench creates or switches the original repository to that branch.
-4. Workbench creates an internal `agent-workbench/*` isolated worktree.
+2. User chooses a session branch.
+3. Workbench creates or reuses that real branch.
+4. Workbench checks the branch out in a dedicated isolated session worktree.
 5. Agent works in the isolated worktree.
 6. User reviews changes.
-7. User applies changes back to the original repository active branch.
+7. User delivers the session branch through add/commit/push/draft PR.
 
 ## Delivery Flow
 
-Delivery operates on the original repository active branch:
+Delivery operates on the isolated session worktree branch:
 
 ```text
-original repo active branch
+session worktree branch
   |
   +-- add selected files
   +-- commit
@@ -161,7 +163,9 @@ Draft PR can run the whole chain automatically.
 
 There are two different terminal concepts:
 
-- Gemini Terminal: native agent CLI session attached to the selected Workbench session.
-- Project shell: manual shell in the original project repository for operator fixes.
+- Agent Terminal: native Gemini, Codex, or Claude CLI session attached to the selected Workbench session.
+- Project shell: manual shell in the selected session worktree for tests, git inspection, and operator fixes.
 
 They are intentionally separate.
+
+The Agent Terminal can also be split: input stays in the right terminal panel, while a read-only transcript projection appears in the center workspace.

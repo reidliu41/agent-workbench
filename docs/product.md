@@ -12,8 +12,7 @@ watch progress from one dashboard
 review what changed
 edit when needed
 snapshot before risk
-apply to the active branch
-ship with add/commit/push/draft PR
+ship the session branch with add/commit/push/draft PR
 ```
 
 ## Primary Users
@@ -21,7 +20,7 @@ ship with add/commit/push/draft PR
 - Developers using Gemini CLI, Codex CLI, or Claude Code for coding tasks.
 - Developers who run multiple tasks in parallel.
 - Developers working over SSH who want a browser-based control surface.
-- Developers who want to review agent changes before they touch the original repository.
+- Developers who want each agent task isolated in its own branch/worktree until it is reviewed.
 - Developers who want native CLI behavior but better session, diff, and delivery management.
 
 ## Main Value
@@ -34,7 +33,7 @@ The core problem is not "how to chat with one model." The core problem is operat
 - multiple sessions per project,
 - isolated worktrees,
 - independent native Gemini, Codex, and Claude sessions,
-- active/blocked/review-ready state,
+- ready/running/review/needs-action/detached/failed state,
 - changed-file overlap awareness,
 - session search and overview.
 
@@ -87,16 +86,41 @@ This is especially useful when reviewing UI bugs, screenshots, terminal output, 
 
 ## Current Workflow
 
+### Session-To-Branch Model
+
+The default product model is:
+
+```text
+one implementation session -> one real branch -> one isolated worktree -> usually one PR
+```
+
+This keeps review, delivery, and rollback understandable:
+
+- each session has a clear scope,
+- each session diff maps to one owned branch,
+- add/commit/push/draft PR actions stay simple,
+- multiple agents can work in parallel without sharing an uncommitted working tree.
+
+For large features, the recommended flow is:
+
+1. Create a planning session.
+2. Ask the agent to split the work into smaller PR-sized tasks.
+3. Create one implementation session for each planned branch.
+4. Review and ship each branch independently.
+
+Future versions may support applying selected files from one session into multiple target branches as an advanced recovery workflow, but that is not the primary design. The primary design remains one implementation session per branch.
+
 ### Create Session
 
 The user selects:
 
 - project,
+- session branch,
 - session name,
 - agent backend,
 - mode.
 
-New sessions do not switch the original repository branch. Workbench creates an isolated session worktree from the current project state, and the final target branch is chosen later during Apply.
+The session branch is a real git branch checked out in one isolated Workbench worktree. A new implementation session should normally use a new branch name. Existing branches can be selected when the user intentionally wants to continue that branch in a new Workbench session.
 
 ### Import Native CLI Session
 
@@ -118,6 +142,8 @@ The session can use:
 - attached native Claude Code terminal,
 - raw terminal fallback for manual work.
 
+The right-side Agent Terminal preserves the native CLI experience. The Split button can project a read-only terminal transcript into the center workspace while keeping input in the terminal panel.
+
 ### Review Changes
 
 The Changes tab shows:
@@ -129,37 +155,27 @@ The Changes tab shows:
 - raw file editor,
 - save file,
 - apply,
-- branch manager,
+- session branch,
 - delivery,
 - snapshots,
-- sync to latest.
-
-### Apply
-
-Apply moves changes from the isolated worktree into a selected original repository branch.
-
-The Apply confirmation lets the user:
-
-- choose an existing branch,
-- type a new branch name,
-- create and switch to that branch before applying.
-
-### Sync
-
-Sync moves the original repository's current active branch into the isolated worktree.
+- terminal projection.
 
 ### Delivery
 
-Delivery targets the original repository's current active branch.
+Delivery is the primary shipping flow and operates on the isolated session worktree branch.
 
 Actions:
 
 - Add: choose changed files and stage selected files.
 - Commit: commit staged files with a message.
-- Push: push the active branch.
+- Push: push the session branch.
 - Draft PR: automatically add, commit, push, then create a draft PR.
 
 If `gh pr create` fails, Workbench falls back quietly to a GitHub compare URL. Git failures still surface as errors.
+
+### Apply Patch
+
+Apply Patch is an advanced fallback for moving reviewed isolated changes into another branch. It is not the default daily workflow; the recommended path is one session branch and Delivery.
 
 ## Product Boundaries
 

@@ -36,8 +36,7 @@ Workbench provides native controls for:
 - diff review,
 - file editing,
 - snapshots,
-- apply,
-- sync,
+- apply patch fallback,
 - delivery,
 - diagnostics.
 

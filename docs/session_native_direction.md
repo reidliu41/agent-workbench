@@ -18,11 +18,11 @@ Developer agent work is becoming:
 
 The product should help operators manage that complexity.
 
-## Native Gemini Sessions
+## Native CLI Sessions
 
-For Gemini CLI, Workbench should preserve native behavior:
+For Gemini CLI, Codex CLI, and Claude Code, Workbench should preserve native behavior:
 
-- native Gemini session IDs,
+- native session IDs,
 - native terminal attach,
 - native slash commands,
 - native auth/settings,
@@ -59,7 +59,6 @@ agent works
 developer reviews
 developer edits if needed
 snapshot
-apply
 deliver
 ```
 
@@ -67,4 +66,6 @@ deliver
 
 The terminal is not just an escape hatch. It preserves native CLI behavior.
 
-For Gemini, the attached terminal lets the user keep using the CLI naturally while Workbench tracks changes and delivery.
+For Gemini, Codex, and Claude, the attached terminal lets the user keep using the CLI naturally while Workbench tracks changes and delivery.
+
+The terminal can be split so the main workspace shows a read-only transcript projection while input remains in the native terminal panel.

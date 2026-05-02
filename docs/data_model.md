@@ -55,7 +55,7 @@ Append-only record of session activity:
 - approvals,
 - terminal state,
 - diff updates,
-- apply/sync/snapshot/delivery actions,
+- apply patch/snapshot/delivery actions,
 - errors.
 
 ### Diff Snapshot
@@ -87,9 +87,9 @@ Derived from session action events:
 
 ## Branch Semantics
 
-Internal `agent-workbench/*` branches belong to isolated worktrees.
+Each implementation session owns one real branch checked out in one isolated Workbench worktree.
 
-User-facing branch management and Delivery operate on the original project repository's current active branch.
+Delivery operates on the session worktree branch. Apply Patch is an advanced fallback for moving reviewed changes into another branch.
 
 ## File Uploads
 

@@ -171,6 +171,18 @@ export class SqliteStore implements WorkbenchStore {
     return rows.map((row) => parseJson<SessionSnapshot>(row.json));
   }
 
+  async updateSnapshot(snapshot: SessionSnapshot): Promise<SessionSnapshot> {
+    const result = this.open().prepare("UPDATE snapshots SET json = ? WHERE task_id = ? AND id = ?").run(JSON.stringify(snapshot), snapshot.taskId, snapshot.id);
+    if (result.changes === 0) {
+      throw new Error("Snapshot not found.");
+    }
+    return snapshot;
+  }
+
+  async deleteSnapshot(taskId: string, snapshotId: string): Promise<void> {
+    this.open().prepare("DELETE FROM snapshots WHERE task_id = ? AND id = ?").run(taskId, snapshotId);
+  }
+
   async health(): Promise<LocalStoreHealth> {
     const primary = await fileStats(this.path);
     return {

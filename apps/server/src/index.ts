@@ -17,6 +17,7 @@ import type {
   CreateBranchRequest,
   CreateProjectRequest,
   CreatePullRequestRequest,
+  CreateSessionDirectoryRequest,
   CreateSessionBranchRequest,
   CreateSessionSnapshotRequest,
   CreateSessionRequest,
@@ -44,6 +45,7 @@ import type {
   ProjectBranchListResponse,
   UpdateProjectRequest,
   UpdateSessionBranchRequest,
+  UpdateSessionSnapshotRequest,
   UpdateSessionFileRequest,
   UploadSessionImageRequest,
   UploadSessionImageResponse,
@@ -429,6 +431,17 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
     });
   });
 
+  app.post("/api/sessions/:id/directories", async (request): Promise<SessionTreeEntry> => {
+    const params = request.params as { id: string };
+    const body = (request.body ?? {}) as Partial<CreateSessionDirectoryRequest>;
+    if (!body.path || typeof body.path !== "string") {
+      throw new Error("Missing required field: path");
+    }
+    return orchestrator.createSessionDirectory(params.id, {
+      path: body.path,
+    });
+  });
+
   app.post("/api/sessions/:id/uploads/images", { bodyLimit: 18 * 1024 * 1024 }, async (request): Promise<UploadSessionImageResponse> => {
     const params = request.params as { id: string };
     const body = (request.body ?? {}) as Partial<UploadSessionImageRequest>;
@@ -469,6 +482,18 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
       body.label?.trim() || "Manual snapshot",
       body.description?.trim() || undefined,
     );
+  });
+
+  app.patch("/api/sessions/:id/snapshots/:snapshotId", async (request) => {
+    const params = request.params as { id: string; snapshotId: string };
+    const body = (request.body ?? {}) as UpdateSessionSnapshotRequest;
+    return orchestrator.updateSessionSnapshot(params.id, params.snapshotId, body);
+  });
+
+  app.delete("/api/sessions/:id/snapshots/:snapshotId", async (request) => {
+    const params = request.params as { id: string; snapshotId: string };
+    await orchestrator.deleteSessionSnapshot(params.id, params.snapshotId);
+    return { ok: true };
   });
 
   app.post("/api/sessions/:id/rollback", async (request) => {
@@ -942,7 +967,7 @@ class TerminalManager {
     const existing = this.sessions.get(key);
     const shell = process.env.SHELL || "/bin/bash";
     const command = process.env.AGENT_WORKBENCH_PROJECT_SHELL_COMMAND?.trim() || `exec ${shellQuote(shell)} -l`;
-    const handle = existing && !existing.exited ? existing : this.start(key, "project-shell", taskId, context.task, context.project.path, cols, rows, command);
+    const handle = existing && !existing.exited ? existing : this.start(key, "project-shell", taskId, context.task, context.worktreePath, cols, rows, command);
     handle.subscribers.add(socket);
     this.sendStatus(socket, taskId, handle);
     for (const chunk of handle.buffer) {
@@ -998,9 +1023,10 @@ class TerminalManager {
 
   private start(key: string, channel: "agent" | "project-shell", taskId: string, task: Task, cwd: string, cols: number, rows: number, command: string): TerminalHandle {
     const shell = process.env.SHELL || "/bin/bash";
-    const guardedCommand = terminalWorktreeCommand(command, cwd, channel === "project-shell" ? "project repo" : "isolated worktree");
+    const guardedCommand = terminalWorktreeCommand(command, cwd, channel === "project-shell" ? "session worktree" : "isolated worktree");
     const env = { ...process.env };
     delete env.GEMINI_CLI_IDE_WORKSPACE_PATH;
+    delete env.NO_COLOR;
     const processHandle = pty.spawn(shell, ["-lc", guardedCommand], {
       cols,
       cwd,
@@ -1011,8 +1037,10 @@ class TerminalManager {
         AGENT_WORKBENCH_DISPLAY_SESSION_ID: displaySessionId(task),
         AGENT_WORKBENCH_WORKTREE: cwd,
         AGENT_WORKBENCH_WORKTREE_REAL: cwd,
+        COLORTERM: "truecolor",
+        FORCE_COLOR: "1",
         PWD: cwd,
-        TERM: process.env.TERM || "xterm-256color",
+        TERM: "xterm-256color",
       },
       name: "xterm-256color",
       rows,
@@ -1171,19 +1199,13 @@ class TerminalManager {
 }
 
 function normalizeTerminalCommand(command?: string, task?: Task, worktreePath?: string): string {
-    const requested =
-    command?.trim() ||
-    (task?.backendId === "codex"
-      ? "codex"
-      : task?.backendId === "claude"
-        ? "claude"
-      : process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task));
-  if (task?.backendId === "codex" && isCodexTerminalCommand(requested)) {
+  const requested = command?.trim() || process.env.AGENT_WORKBENCH_TERMINAL_COMMAND?.trim() || defaultTerminalCommand(task);
+  if (task?.backendId === "codex") {
     const sessionId = nativeCodexCliSessionId(task);
     const cd = worktreePath ? ` --cd ${shellQuote(worktreePath)}` : "";
     return sessionId ? `codex resume${cd} ${sessionId}` : `codex${cd}`;
   }
-  if (task?.backendId === "claude" && isClaudeTerminalCommand(requested)) {
+  if (task?.backendId === "claude") {
     const sessionId = nativeClaudeCliSessionId(task);
     if (sessionId) {
       return task.agentSessionResumeMode === "resume" ? `claude --resume ${sessionId}` : `claude --session-id ${sessionId} --name ${shellQuote(task.title)}`;
@@ -1191,9 +1213,6 @@ function normalizeTerminalCommand(command?: string, task?: Task, worktreePath?: 
     return "claude";
   }
   if (!task || (task.backendId !== "gemini" && task.backendId !== "gemini-acp")) {
-    return requested;
-  }
-  if (!isGeminiTerminalCommand(requested)) {
     return requested;
   }
   const sessionId = nativeGeminiCliSessionId(task);

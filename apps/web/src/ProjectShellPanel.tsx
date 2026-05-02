@@ -67,10 +67,26 @@ export function ProjectShellPanel({
       fontSize: 13,
       scrollback: 5000,
       theme: {
+        black: "#0b0f10",
+        blue: "#7aa2ff",
+        brightBlack: "#6f7b7a",
+        brightBlue: "#9bb8ff",
+        brightCyan: "#8eeaff",
+        brightGreen: "#b8ff8d",
+        brightMagenta: "#f0a7ff",
+        brightRed: "#ff9a8f",
+        brightWhite: "#ffffff",
+        brightYellow: "#ffe88a",
         background: "#101415",
+        cyan: "#68d8ef",
         cursor: "#d7ff7a",
-        foreground: "#e7e2d7",
+        foreground: "#f0eadf",
+        green: "#9be564",
+        magenta: "#d99cff",
+        red: "#ff776d",
         selectionBackground: "#3a453d",
+        white: "#f0eadf",
+        yellow: "#ffd866",
       },
     });
     const fit = new FitAddon();
@@ -218,7 +234,7 @@ export function ProjectShellPanel({
       <div className="terminal-toolbar">
         <div className="terminal-toolbar-copy">
           <strong>Project shell</strong>
-          <small>{cwd ?? "Opening shell in the original project repository..."}</small>
+          <small>{cwd ?? "Opening shell in this session worktree..."}</small>
         </div>
         <span className={`terminal-status ${status}`}>{status}</span>
         <button className="secondary compact-button" onClick={() => connectShell(attached ? "shell.restart" : "shell.open")} type="button">

@@ -48,14 +48,11 @@ This is not a sandbox. A CLI process may still access other local paths unless t
 
 ## Git Safety
 
-Delivery actions affect the original repository active branch.
+Delivery actions affect the selected session worktree branch.
 
 Potentially risky operations:
 
-- apply to repo,
-- sync to latest,
-- branch switch,
-- remove branch,
+- apply patch,
 - add,
 - commit,
 - push,
