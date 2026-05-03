@@ -13,6 +13,7 @@ Implemented core:
 - Gemini terminal attach,
 - Codex terminal attach,
 - Claude Code terminal attach,
+- Qwen Code terminal attach,
 - isolated worktrees,
 - Changes review workspace,
 - editable file content,
@@ -23,7 +24,7 @@ Implemented core:
 - delivery add/commit/push/draft PR,
 - voice input,
 - clipboard screenshot upload,
-- terminal split projection,
+- enhanced terminal split projection with color-preserving transcript, footer filtering, and zoom controls,
 - diagnostics.
 
 ## Current Priority
@@ -47,9 +48,11 @@ Immediate areas:
 - search sessions,
 - remove sessions,
 - import native Gemini, Codex, and Claude sessions,
+- import existing Qwen Code sessions through the project-path bridge,
 - overview state,
 - stuck/blocked visibility,
 - independent terminal attach.
+- split terminal projection for Gemini, Codex, Claude Code, and Qwen Code.
 
 ### Review
 

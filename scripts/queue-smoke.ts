@@ -156,7 +156,7 @@ async function main(): Promise<void> {
       worktreePath: repo,
     });
     const orphanOverview = (await orchestrator.listSessionOverviews()).find((item) => item.task.id === "orphan-running");
-    assert(orphanOverview?.health === "stuck", `expected orphan running health stuck, got ${orphanOverview?.health}`);
+    assert(orphanOverview?.health === "failed", `expected orphan running health failed, got ${orphanOverview?.health}`);
     assert(orphanOverview.stuck === true, "expected orphan running stuck flag");
     assert(orphanOverview.nextAction.includes("stop or reconnect"), `unexpected orphan next action: ${orphanOverview.nextAction}`);
 

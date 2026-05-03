@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { access, appendFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import type {
@@ -73,6 +73,10 @@ import {
   listGeminiProjectSessionCandidates,
   listGeminiProjectSessions,
 } from "../integrations/geminiSessions.js";
+import {
+  bridgeQwenSessionToWorktree,
+  listQwenProjectSessions,
+} from "../integrations/qwenSessions.js";
 import type { WorkbenchStore } from "../storage/localStore.js";
 
 export interface AgentBackend {
@@ -143,6 +147,7 @@ export class WorkbenchOrchestrator {
 
   async init(): Promise<void> {
     await this.options.store.init();
+    await this.repairQwenResumeStates();
     await this.recoverStaleSessions();
   }
 
@@ -219,6 +224,29 @@ export class WorkbenchOrchestrator {
 
   async listTasks(): Promise<Task[]> {
     return this.options.store.listTasks();
+  }
+
+  private async repairQwenResumeStates(): Promise<void> {
+    const tasks = await this.options.store.listTasks();
+    for (const task of tasks) {
+      if (
+        !isQwenBackendId(task.backendId) ||
+        task.agentSessionResumeMode !== "resume" ||
+        !task.agentSessionId ||
+        !task.worktreePath
+      ) {
+        continue;
+      }
+      if (await qwenSessionFileExists(task.worktreePath, task.agentSessionId)) {
+        continue;
+      }
+      await this.updateTask({
+        ...task,
+        agentContextStatus: task.agentContextStatus ?? "live",
+        agentSessionResumeMode: undefined,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   }
 
   private async recoverStaleSessions(): Promise<void> {
@@ -470,8 +498,11 @@ export class WorkbenchOrchestrator {
     if (input.agentSessionId && isGeminiBackendId(backendId)) {
       await bridgeGeminiSessionToWorktree(project.path, worktreePath, input.agentSessionId);
     }
+    if (input.agentSessionId && isQwenBackendId(backendId)) {
+      await bridgeQwenSessionToWorktree(project.path, worktreePath, input.agentSessionId);
+    }
 
-    const nativeAgentSessionId = isClaudeBackendId(backendId) ? (input.agentSessionId ?? randomUUID()) : input.agentSessionId;
+    const nativeAgentSessionId = usesPreallocatedNativeSessionId(backendId) ? (input.agentSessionId ?? randomUUID()) : input.agentSessionId;
 
     let task: Task = {
       id,
@@ -536,7 +567,7 @@ export class WorkbenchOrchestrator {
     if (!project) {
       throw new Error("Project not found.");
     }
-    const backendIds: NativeCliBackendId[] = backendId ? [backendId] : ["gemini-acp", "codex", "claude"];
+    const backendIds: NativeCliBackendId[] = backendId ? [backendId] : ["gemini-acp", "codex", "claude", "qwen"];
     const groups = await Promise.all(
       backendIds.map(async (id) => {
         if (id === "gemini-acp") {
@@ -564,6 +595,20 @@ export class WorkbenchOrchestrator {
             lastUpdated: session.lastUpdated,
             messageCount: session.messageCount,
             startTime: session.startTime,
+          }));
+        }
+        if (id === "qwen") {
+          return (await listQwenProjectSessions(project.path)).map((session): NativeCliProjectSession => ({
+            backendId: "qwen",
+            backendName: "Qwen Code",
+            displayName: session.displayName,
+            fileName: session.fileName,
+            firstUserMessage: session.firstUserMessage,
+            id: session.id,
+            lastUpdated: session.lastUpdated,
+            messageCount: session.messageCount,
+            startTime: session.startTime,
+            summary: session.summary,
           }));
         }
         return (await listClaudeProjectSessions(project.path)).map((session): NativeCliProjectSession => ({
@@ -1511,6 +1556,8 @@ export class WorkbenchOrchestrator {
 
     try {
       const status = await this.options.git.statusPorcelain(worktreePath);
+      const deliveryPatchText = await this.sessionPatch(task, worktreePath);
+      const patchPath = deliveryPatchText.trim() ? await this.writePatchFile(project, task, deliveryPatchText) : undefined;
       let commitSha = await this.options.git.currentCommit(worktreePath);
       if (status.trim()) {
         const commitMessage = input.commitMessage?.trim() || defaultDeliveryCommitMessage(task);
@@ -1534,7 +1581,7 @@ export class WorkbenchOrchestrator {
           status: postCommitStatus,
         });
       }
-      const summary = summarizeDiff(await this.options.git.diff(worktreePath));
+      const summary = summarizeDiff(deliveryPatchText);
 
       let pushed = false;
       try {
@@ -1551,6 +1598,7 @@ export class WorkbenchOrchestrator {
           commitSha,
           created: false,
           message,
+          patchPath,
           pushed,
           remote,
           summary,
@@ -1560,6 +1608,7 @@ export class WorkbenchOrchestrator {
           commitSha,
           created: false,
           message,
+          patchPath,
           pushed,
           remote,
           task: updated,
@@ -1578,6 +1627,7 @@ export class WorkbenchOrchestrator {
           commitSha,
           created: false,
           message,
+          patchPath,
           pushed,
           remote,
           summary,
@@ -1587,6 +1637,7 @@ export class WorkbenchOrchestrator {
           commitSha,
           created: false,
           message,
+          patchPath,
           pushed,
           remote,
           task: updated,
@@ -1614,6 +1665,7 @@ export class WorkbenchOrchestrator {
           commitSha,
           created: false,
           message,
+          patchPath,
           pushed,
           remote,
           summary,
@@ -1623,6 +1675,7 @@ export class WorkbenchOrchestrator {
           commitSha,
           created: false,
           message,
+          patchPath,
           pushed,
           remote,
           task: updated,
@@ -1643,6 +1696,7 @@ export class WorkbenchOrchestrator {
           created: pr.created,
           fallbackReason: pr.fallbackReason,
           message: pr.created ? pr.message : "Compare URL ready.",
+          patchPath,
           pushed,
           remote,
           summary,
@@ -1655,6 +1709,7 @@ export class WorkbenchOrchestrator {
         compareUrl: pr.created ? undefined : pr.url,
         created: pr.created,
         message: pr.created ? pr.message : "Compare URL ready.",
+        patchPath,
         pushed,
         remote,
         task: updated,
@@ -2198,7 +2253,7 @@ export class WorkbenchOrchestrator {
     if (!task || !isGeminiBackendId(task.backendId)) {
       return;
     }
-    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli") {
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli" && task.agentSessionResumeMode === "resume") {
       return;
     }
     if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
@@ -2247,7 +2302,7 @@ export class WorkbenchOrchestrator {
     if (!task || !isCodexBackendId(task.backendId)) {
       return;
     }
-    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli") {
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli" && task.agentSessionResumeMode === "resume") {
       return;
     }
     if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
@@ -2281,7 +2336,7 @@ export class WorkbenchOrchestrator {
     if (!task || !isClaudeBackendId(task.backendId)) {
       return;
     }
-    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli") {
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli" && task.agentSessionResumeMode === "resume") {
       return;
     }
     if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
@@ -2305,6 +2360,43 @@ export class WorkbenchOrchestrator {
       {
         agentSessionId: sessionId,
         kind: "claude-session-link",
+        source: "terminal-output",
+      },
+    );
+  }
+
+  async recordTerminalQwenSession(taskId: string, sessionId: string): Promise<void> {
+    const task = await this.options.store.getTask(taskId);
+    if (!task || !isQwenBackendId(task.backendId)) {
+      return;
+    }
+    if (!task.worktreePath || !(await qwenSessionFileExists(task.worktreePath, sessionId))) {
+      return;
+    }
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli" && task.agentSessionResumeMode === "resume") {
+      return;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
+      return;
+    }
+
+    await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: sessionId,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume",
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Captured Qwen Code resume session.",
+      `Qwen Code reported resumable session ${sessionId}.`,
+      {
+        agentSessionId: sessionId,
+        kind: "qwen-session-link",
         source: "terminal-output",
       },
     );
@@ -2494,6 +2586,46 @@ export class WorkbenchOrchestrator {
     return updated;
   }
 
+  private async reconcileQwenSessionLink(task: Task): Promise<Task> {
+    if (!isQwenBackendId(task.backendId) || !task.agentSessionId || !task.worktreePath) {
+      return task;
+    }
+    const resumable = await qwenSessionFileExists(task.worktreePath, task.agentSessionId);
+    if (!resumable && task.agentSessionOrigin === "imported") {
+      const project = (await this.options.store.listProjects()).find((item) => item.id === task.projectId);
+      if (project) {
+        try {
+          await bridgeQwenSessionToWorktree(project.path, task.worktreePath, task.agentSessionId);
+        } catch {
+          // Keep the session in fixed-id startup mode; terminal output will show the native Qwen error if resume is attempted.
+        }
+      }
+    }
+    const verified = resumable || (await qwenSessionFileExists(task.worktreePath, task.agentSessionId));
+    if (!verified) {
+      if (task.agentSessionResumeMode === "resume") {
+        return this.updateTask({
+          ...task,
+          agentSessionResumeMode: undefined,
+          agentContextStatus: task.agentContextStatus ?? "live",
+        });
+      }
+      return task;
+    }
+
+    if (task.agentSessionKind === "native-cli" && task.agentSessionResumeMode === "resume") {
+      return task;
+    }
+
+    return this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume",
+    });
+  }
+
   private async reconcileNativeSessionLink(task: Task, options: { includePending?: boolean } = {}): Promise<Task> {
     if (isGeminiBackendId(task.backendId)) {
       return this.reconcileGeminiSessionLink(task, options);
@@ -2503,6 +2635,9 @@ export class WorkbenchOrchestrator {
     }
     if (isClaudeBackendId(task.backendId)) {
       return this.reconcileClaudeSessionLink(task);
+    }
+    if (isQwenBackendId(task.backendId)) {
+      return this.reconcileQwenSessionLink(task);
     }
     return task;
   }
@@ -3952,8 +4087,34 @@ function isClaudeBackendId(backendId: string): boolean {
   return backendId === "claude";
 }
 
+function isQwenBackendId(backendId: string): boolean {
+  return backendId === "qwen";
+}
+
 function isNativeCliBackendId(backendId: string): boolean {
-  return isGeminiBackendId(backendId) || isCodexBackendId(backendId) || isClaudeBackendId(backendId);
+  return isGeminiBackendId(backendId) || isCodexBackendId(backendId) || isClaudeBackendId(backendId) || isQwenBackendId(backendId);
+}
+
+function usesPreallocatedNativeSessionId(backendId: string): boolean {
+  return isClaudeBackendId(backendId) || isQwenBackendId(backendId);
+}
+
+async function qwenSessionFileExists(worktreePath: string, sessionId: string): Promise<boolean> {
+  try {
+    await access(qwenSessionFilePath(worktreePath, sessionId));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function qwenSessionFilePath(worktreePath: string, sessionId: string): string {
+  return join(process.env.QWEN_RUNTIME_DIR || join(homedir(), ".qwen"), "projects", sanitizeQwenCwd(worktreePath), "chats", `${sessionId}.jsonl`);
+}
+
+function sanitizeQwenCwd(cwd: string): string {
+  const normalized = process.platform === "win32" ? cwd.toLowerCase() : cwd;
+  return normalized.replace(/[^a-zA-Z0-9]/g, "-");
 }
 
 function nativeCliBackendName(backendId: NativeCliBackendId): string {
@@ -3962,6 +4123,9 @@ function nativeCliBackendName(backendId: NativeCliBackendId): string {
   }
   if (backendId === "codex") {
     return "OpenAI Codex";
+  }
+  if (backendId === "qwen") {
+    return "Qwen Code";
   }
   return "Claude Code";
 }

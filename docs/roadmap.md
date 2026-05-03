@@ -14,13 +14,14 @@ Included:
 - native Gemini terminal attach,
 - native Codex terminal attach,
 - native Claude Code terminal attach,
+- native Qwen Code terminal attach,
 - Changes review/edit workspace,
 - snapshots,
 - one session -> one branch -> one isolated worktree,
 - delivery add/commit/push/draft PR,
 - voice input,
 - screenshot upload,
-- terminal split projection.
+- enhanced terminal split projection with color-preserving transcript, footer filtering, and zoom controls.
 
 ## v0.2: Reliability And Polish
 
@@ -31,6 +32,7 @@ Focus:
 - planning-session workflow for splitting large work into smaller branch/session tasks,
 - clearer compare summaries,
 - better terminal lifecycle cleanup,
+- stronger native CLI projection profiles,
 - better session recovery,
 - improved UI density,
 - improved error remediation,
@@ -61,7 +63,7 @@ Focus:
 
 Expected:
 
-- Gemini, Codex, and Claude native terminal workflows stable for daily use,
+- Gemini, Codex, Claude, and Qwen native terminal workflows stable for daily use,
 - at least one additional backend path beyond those three,
 - reliable session dashboard,
 - reliable review/edit/delivery,

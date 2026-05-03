@@ -74,6 +74,7 @@ Current:
 - native Gemini terminal,
 - native Codex terminal,
 - native Claude Code terminal,
+- native Qwen Code terminal,
 - generic PTY.
 
 Future:

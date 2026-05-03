@@ -4,7 +4,7 @@
 
 Agent Workbench is a session-native workbench for operating coding agents.
 
-It preserves native agent behavior where that matters, especially Gemini CLI, Codex CLI, and Claude Code, and adds the missing operator layer:
+It preserves native agent behavior where that matters, especially Gemini CLI, Codex CLI, Claude Code, and Qwen Code, and adds the missing operator layer:
 
 - multi-project visibility,
 - multi-session coordination,
@@ -26,7 +26,7 @@ The browser renders the UI. The local Node gateway owns filesystem access, git, 
 
 ### Session Native
 
-A Workbench session should bind to the real backend session when possible. For Gemini, Codex, and Claude, that means native session IDs and native terminal attach/resume.
+A Workbench session should bind to the real backend session when possible. For Gemini, Codex, Claude, and Qwen, that means native session IDs and native terminal attach/resume.
 
 ### Worktree Isolation
 
@@ -67,6 +67,8 @@ Session tabs:
 - Terminal.
 
 The center workspace owns review, editing, snapshots, delivery, diagnostics, and the optional read-only terminal projection.
+
+Terminal projection is intentionally read-only. It mirrors the useful transcript from the native terminal, preserves terminal styling where possible, filters live prompt/footer/status chrome, and supports independent zoom.
 
 ### Right Panel
 

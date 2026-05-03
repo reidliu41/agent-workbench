@@ -1822,6 +1822,7 @@ small {
   background: #15191b;
   border-bottom: 1px solid #2a3031;
   display: flex;
+  gap: 16px;
   justify-content: space-between;
   padding: 12px 14px;
 }
@@ -1835,16 +1836,31 @@ small {
   color: #a9b1aa;
 }
 
+.terminal-projection-zoom {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.terminal-projection-zoom span {
+  color: #a9b1aa;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  min-width: 42px;
+  text-align: center;
+}
+
 .terminal-projection pre {
   color: #e7e2d7;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: clamp(13px, 1.08vw, 18px);
-  line-height: 1.45;
+  font-size: var(--terminal-projection-font-size, 13px);
+  line-height: 1.35;
   margin: 0;
   min-height: 0;
   overflow: auto;
   padding: 18px;
-  white-space: pre-wrap;
+  white-space: pre;
 }
 
 .timeline header {

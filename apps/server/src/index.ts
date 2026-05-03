@@ -8,7 +8,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as pty from "node-pty";
 import { EventBus, GitClient, WorkbenchOrchestrator, createLocalToken, createWorkbenchStore, extractToken } from "@agent-workbench/core";
-import { ClaudeTerminalBackend, CodexTerminalBackend, GeminiAcpBackend, GeminiBackend, GenericPtyBackend } from "@agent-workbench/adapters";
+import { ClaudeTerminalBackend, CodexTerminalBackend, GeminiAcpBackend, GeminiBackend, GenericPtyBackend, QwenTerminalBackend } from "@agent-workbench/adapters";
 import type {
   ClientMessage,
   AddProjectChangesRequest,
@@ -85,7 +85,7 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
     store,
     git: new GitClient(),
     eventBus,
-    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new ClaudeTerminalBackend(), new GenericPtyBackend()],
+    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new ClaudeTerminalBackend(), new QwenTerminalBackend(), new GenericPtyBackend()],
     worktreeRoot,
   });
   await orchestrator.init();
@@ -149,6 +149,12 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         label: "Claude Code terminal",
       },
       {
+        command: process.env.QWEN_CODE_COMMAND ?? "qwen",
+        envVar: "QWEN_CODE_COMMAND",
+        id: "qwen",
+        label: "Qwen Code terminal",
+      },
+      {
         command: process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash",
         envVar: "AGENT_WORKBENCH_FALLBACK_COMMAND",
         id: "generic-pty",
@@ -174,17 +180,18 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
   }));
 
   app.get("/api/system/doctor", async (): Promise<SystemDoctorResponse> => {
-    const [node, git, gemini, codex, claude, storage] = await Promise.all([
+    const [node, git, gemini, codex, claude, qwen, storage] = await Promise.all([
       checkCommand("node", ["-v"]),
       checkCommand("git", ["--version"]),
       checkCommand(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
       checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
       checkCommand(process.env.CLAUDE_CODE_COMMAND ?? "claude", ["--version"]),
+      checkCommand(process.env.QWEN_CODE_COMMAND ?? "qwen", ["--version"]),
       store.health(),
     ]);
     const usesJsonStore = extname(storage.path).toLowerCase() === ".json";
     return {
-      checks: [node, git, gemini, codex, claude],
+      checks: [node, git, gemini, codex, claude, qwen],
       host,
       port,
       storage: {
@@ -199,6 +206,7 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         gemini.ok ? undefined : "Gemini CLI is not available; structured Gemini ACP sessions will not work until it is installed and authenticated.",
         codex.ok ? undefined : "Codex CLI is not available; Codex terminal sessions will not work until it is installed and authenticated.",
         claude.ok ? undefined : "Claude Code is not available; Claude terminal sessions will not work until it is installed and authenticated.",
+        qwen.ok ? undefined : "Qwen Code is not available; Qwen terminal sessions will not work until it is installed and authenticated.",
       ].filter((warning): warning is string => Boolean(warning)),
     };
   });
@@ -870,6 +878,7 @@ interface TerminalHandle {
   reportedCodexSessionId?: string;
   reportedClaudeSessionId?: string;
   reportedGeminiSessionId?: string;
+  reportedQwenSessionId?: string;
   sessionLinkRefresh?: NodeJS.Timeout;
   process: pty.IPty;
   rows: number;
@@ -1104,6 +1113,10 @@ class TerminalManager {
       this.captureClaudeSessionFromTerminal(taskId, handle);
       return;
     }
+    if (handle.task.backendId === "qwen") {
+      this.captureQwenSessionFromTerminal(taskId, handle);
+      return;
+    }
     this.captureGeminiSessionFromTerminal(taskId, handle);
   }
 
@@ -1132,6 +1145,15 @@ class TerminalManager {
     }
     handle.reportedClaudeSessionId = sessionId;
     void this.orchestrator.recordTerminalClaudeSession(taskId, sessionId).catch(() => undefined);
+  }
+
+  private captureQwenSessionFromTerminal(taskId: string, handle: TerminalHandle): void {
+    const sessionId = extractQwenResumeSessionId(handle.buffer.join(""));
+    if (!sessionId || sessionId === handle.reportedQwenSessionId) {
+      return;
+    }
+    handle.reportedQwenSessionId = sessionId;
+    void this.orchestrator.recordTerminalQwenSession(taskId, sessionId).catch(() => undefined);
   }
 
   private broadcast(key: string, message: ServerMessage): void {
@@ -1212,6 +1234,13 @@ function normalizeTerminalCommand(command?: string, task?: Task, worktreePath?: 
     }
     return "claude";
   }
+  if (task?.backendId === "qwen") {
+    const sessionId = nativeQwenCliSessionId(task);
+    if (sessionId) {
+      return task.agentSessionResumeMode === "resume" ? `qwen --resume ${sessionId}` : `qwen --session-id ${sessionId}`;
+    }
+    return "qwen";
+  }
   if (!task || (task.backendId !== "gemini" && task.backendId !== "gemini-acp")) {
     return requested;
   }
@@ -1225,6 +1254,9 @@ function defaultTerminalCommand(task?: Task): string {
   }
   if (task?.backendId === "claude") {
     return "claude";
+  }
+  if (task?.backendId === "qwen") {
+    return "qwen";
   }
   return "gemini";
 }
@@ -1245,7 +1277,7 @@ function terminalWorktreeCommand(command: string, cwd: string, label = "isolated
 }
 
 function displaySessionId(task: Task): string {
-  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? nativeClaudeCliSessionId(task) ?? task.id;
+  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? nativeClaudeCliSessionId(task) ?? nativeQwenCliSessionId(task) ?? task.id;
 }
 
 function nativeGeminiCliSessionId(task: Task): string | undefined {
@@ -1272,6 +1304,14 @@ function nativeClaudeCliSessionId(task: Task): string | undefined {
     : undefined;
 }
 
+function nativeQwenCliSessionId(task: Task): string | undefined {
+  return task.agentSessionId &&
+    task.backendId === "qwen" &&
+    (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported"))
+    ? task.agentSessionId
+    : undefined;
+}
+
 function isGeminiTerminalCommand(command: string): boolean {
   return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
 }
@@ -1282,6 +1322,10 @@ function isCodexTerminalCommand(command: string): boolean {
 
 function isClaudeTerminalCommand(command: string): boolean {
   return command === "claude" || /^claude\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
+}
+
+function isQwenTerminalCommand(command: string): boolean {
+  return command === "qwen" || /^qwen\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
 }
 
 function shellQuote(value: string): string {
@@ -1345,6 +1389,15 @@ function extractCodexResumeSessionId(raw: string): string | undefined {
 function extractClaudeResumeSessionId(raw: string): string | undefined {
   const text = stripTerminalControl(raw);
   const resumeMatch = text.match(/claude\s+(?:--resume|-r|--session-id)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (resumeMatch?.[1]) {
+    return resumeMatch[1];
+  }
+  return undefined;
+}
+
+function extractQwenResumeSessionId(raw: string): string | undefined {
+  const text = stripTerminalControl(raw);
+  const resumeMatch = text.match(/qwen\s+(?:--resume|-r)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
   if (resumeMatch?.[1]) {
     return resumeMatch[1];
   }

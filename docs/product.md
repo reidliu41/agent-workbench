@@ -17,7 +17,7 @@ ship the session branch with add/commit/push/draft PR
 
 ## Primary Users
 
-- Developers using Gemini CLI, Codex CLI, or Claude Code for coding tasks.
+- Developers using Gemini CLI, Codex CLI, Claude Code, or Qwen Code for coding tasks.
 - Developers who run multiple tasks in parallel.
 - Developers working over SSH who want a browser-based control surface.
 - Developers who want each agent task isolated in its own branch/worktree until it is reviewed.
@@ -32,7 +32,7 @@ The core problem is not "how to chat with one model." The core problem is operat
 - multiple projects,
 - multiple sessions per project,
 - isolated worktrees,
-- independent native Gemini, Codex, and Claude sessions,
+- independent native Gemini, Codex, Claude, and Qwen sessions,
 - ready/running/review/needs-action/detached/failed state,
 - changed-file overlap awareness,
 - session search and overview.
@@ -68,7 +68,8 @@ The current backend focus is native coding CLIs:
 - native Gemini terminal attach,
 - native Codex terminal attach,
 - native Claude Code terminal attach,
-- native Gemini, Codex, and Claude session import/resume,
+- native Qwen Code terminal attach,
+- native Gemini, Codex, Claude, and Qwen session import/resume,
 - native auth/settings reuse,
 - slash commands available through the native terminal.
 
@@ -128,7 +129,8 @@ The Sessions menu can import existing native CLI sessions:
 
 - Gemini CLI sessions from Gemini's local project session store,
 - Codex CLI sessions from Codex rollout metadata,
-- Claude Code sessions from Claude project JSONL history.
+- Claude Code sessions from Claude project JSONL history,
+- Qwen Code sessions can be imported through a project-path bridge that copies the selected Qwen JSONL history into the isolated Workbench worktree and rewrites its stored `cwd`.
 
 Imported sessions are linked to Workbench sessions and reopen with each CLI's native resume command.
 
@@ -140,9 +142,17 @@ The session can use:
 - attached native Gemini terminal,
 - attached native Codex terminal,
 - attached native Claude Code terminal,
+- attached native Qwen Code terminal,
 - raw terminal fallback for manual work.
 
-The right-side Agent Terminal preserves the native CLI experience. The Split button can project a read-only terminal transcript into the center workspace while keeping input in the terminal panel.
+The right-side Agent Terminal preserves the native CLI experience. The Split button projects a read-only, color-preserving terminal transcript into the center workspace while keeping input in the terminal panel.
+
+The projection is intentionally not another input surface. It is a review surface:
+
+- terminal colors and basic cell styling are preserved,
+- CLI prompt/footer/status areas are filtered out,
+- the center workspace can be zoomed independently from the real terminal,
+- Gemini, Codex, Claude Code, and Qwen Code can keep their native command loops.
 
 ### Review Changes
 
@@ -183,7 +193,7 @@ Current version includes:
 
 - local web app,
 - local token auth,
-- Gemini, Codex, and Claude native terminal workflows,
+- Gemini, Codex, Claude, and Qwen native terminal workflows,
 - git/worktree based isolation,
 - review/diff/snapshot/delivery workflow.
 

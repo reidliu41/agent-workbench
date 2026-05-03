@@ -2,7 +2,7 @@
 
 ## Current Adapter Priority
 
-Gemini CLI remains the first structured backend, but Workbench now also supports native terminal backends for Codex CLI and Claude Code.
+Gemini CLI remains the first structured backend, but Workbench now also supports native terminal backends for Codex CLI, Claude Code, and Qwen Code.
 
 Current adapter paths:
 
@@ -10,8 +10,9 @@ Current adapter paths:
 2. Native Gemini terminal attach.
 3. Native Codex CLI terminal attach.
 4. Native Claude Code terminal attach.
-5. One-shot Gemini fallback for simple/headless use.
-6. Generic PTY fallback for manual or future agent experiments.
+5. Native Qwen Code terminal attach.
+6. One-shot Gemini fallback for simple/headless use.
+7. Generic PTY fallback for manual or future agent experiments.
 
 ## Capability Model
 
@@ -112,6 +113,34 @@ claude --resume <id>
 This keeps Claude Code slash commands, plugins, skills, hooks, permissions, and model controls inside Claude Code while Workbench provides dashboard, review, snapshots, apply patch fallback, and delivery.
 
 Existing Claude Code sessions can be imported from Claude project JSONL history and linked to a Workbench session. Later attaches use `claude --resume <id>`.
+
+## Native Qwen Code Terminal
+
+Qwen Code runs as a native terminal backend inside the isolated session worktree.
+
+Workbench creates a stable Qwen session id when the Workbench session is created:
+
+```bash
+qwen --session-id <id>
+```
+
+Later attaches use:
+
+```bash
+qwen --resume <id>
+```
+
+This keeps Qwen Code slash commands, memory commands, approvals, and model controls inside Qwen Code while Workbench provides dashboard, review, snapshots, apply patch fallback, and delivery.
+
+Existing Qwen Code sessions can be imported from Qwen's project JSONL history. Because Qwen validates sessions against the current project path, Workbench bridges the selected session into the isolated session worktree and rewrites the stored `cwd` fields to that worktree before using `qwen --resume <id>`.
+
+Qwen support follows the same native-session rule as the other CLIs: Qwen owns the interactive CLI behavior, while Workbench owns the project/session dashboard, worktree isolation, review, snapshots, and delivery.
+
+## Split Terminal Projection
+
+Native terminal adapters can use the Split control in the Agent Terminal.
+
+Split keeps input in the right-side terminal and projects a read-only transcript into the center workspace. The projection reads xterm buffer cells instead of plain text, so it can preserve foreground/background colors and basic styling. It filters live input prompts, footer/status lines, and Workbench terminal banners so the center view focuses on agent output. Projection zoom is local to the browser.
 
 ## One-Shot Gemini Backend
 

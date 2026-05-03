@@ -49,6 +49,7 @@ import type {
   UpdateSessionFileRequest,
   UpdateSessionSnapshotRequest,
 } from "@agent-workbench/protocol";
+import type { TerminalProjectionLine } from "./TerminalPanel";
 import "./styles.css";
 
 const TerminalPanel = React.lazy(() => import("./TerminalPanel"));
@@ -60,6 +61,10 @@ const popoutView = new URL(window.location.href).searchParams.get("popout") === 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "agent-workbench-sidebar-collapsed";
 const SIDEBAR_WIDTH_STORAGE_KEY = "agent-workbench-sidebar-width";
 const SESSION_TERMINAL_WIDTH_STORAGE_KEY = "agent-workbench-session-terminal-width";
+const TERMINAL_PROJECTION_ZOOM_STORAGE_KEY = "agent-workbench-terminal-projection-zoom";
+const TERMINAL_PROJECTION_ZOOM_LEVELS = [80, 90, 100, 110, 125, 150, 175, 200] as const;
+const MIN_TERMINAL_PROJECTION_ZOOM = TERMINAL_PROJECTION_ZOOM_LEVELS[0];
+const MAX_TERMINAL_PROJECTION_ZOOM = TERMINAL_PROJECTION_ZOOM_LEVELS[TERMINAL_PROJECTION_ZOOM_LEVELS.length - 1] ?? MIN_TERMINAL_PROJECTION_ZOOM;
 const FEED_STORAGE_KEYS = {
   attention: feedStorageKey("Attention feed"),
   ship: feedStorageKey("Ship feed"),
@@ -349,7 +354,10 @@ function App(): React.JSX.Element {
   const [sidebarWidth, setSidebarWidth] = useState(() => readStoredNumber(SIDEBAR_WIDTH_STORAGE_KEY, 340));
   const [sessionTerminalWidth, setSessionTerminalWidth] = useState(() => readStoredNumber(SESSION_TERMINAL_WIDTH_STORAGE_KEY, 640));
   const [projectedTerminalTaskId, setProjectedTerminalTaskId] = useState<string>();
-  const [terminalProjectionLines, setTerminalProjectionLines] = useState<string[]>([]);
+  const [terminalProjectionLines, setTerminalProjectionLines] = useState<TerminalProjectionLine[]>([]);
+  const [terminalProjectionZoom, setTerminalProjectionZoom] = useState(() =>
+    nearestTerminalProjectionZoom(readStoredNumber(TERMINAL_PROJECTION_ZOOM_STORAGE_KEY, 100)),
+  );
   const appShellRef = useRef<HTMLElement>(null);
   const sidebarDragSuppressedClickRef = useRef(false);
   const sessionDragSuppressedClickRef = useRef(false);
@@ -363,6 +371,10 @@ function App(): React.JSX.Element {
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    window.localStorage.setItem(TERMINAL_PROJECTION_ZOOM_STORAGE_KEY, String(terminalProjectionZoom));
+  }, [terminalProjectionZoom]);
 
   useEffect(() => {
     window.localStorage.setItem(SESSION_TERMINAL_WIDTH_STORAGE_KEY, String(sessionTerminalWidth));
@@ -1548,7 +1560,13 @@ function App(): React.JSX.Element {
           ) : null}
           <section className={`timeline ${terminalProjected ? "terminal-projection-shell" : ""}`}>
             {terminalProjected ? (
-              <TerminalProjection lines={terminalProjectionLines} task={selectedTask} />
+              <TerminalProjection
+                lines={terminalProjectionLines}
+                onZoomIn={() => setTerminalProjectionZoom((current) => nextTerminalProjectionZoom(current))}
+                onZoomOut={() => setTerminalProjectionZoom((current) => previousTerminalProjectionZoom(current))}
+                task={selectedTask}
+                zoom={terminalProjectionZoom}
+              />
             ) : (
               <>
                 <header>
@@ -1675,7 +1693,7 @@ function App(): React.JSX.Element {
             <div className="session-terminal-header">
               <div>
                 <h3>Agent Terminal</h3>
-                <small>Native agent CLI for this session. Linked Gemini, Codex, and Claude sessions reopen with their native resume command.</small>
+                <small>Native agent CLI for this session. Linked Gemini, Codex, Claude, and Qwen sessions reopen with their native resume command.</small>
               </div>
               {selectedTask ? <SessionStateBadge overview={selectedOverview} task={selectedTask} /> : null}
             </div>
@@ -1956,7 +1974,7 @@ function CapabilityCenterWorkspace({
               {doctorRunning ? "Checking" : "Run doctor"}
             </button>
           </div>
-          {doctor ? <SystemDoctorPanel doctor={doctor} /> : <p className="empty">Run doctor to verify Node, Git, Gemini CLI, storage, and bind warnings.</p>}
+          {doctor ? <SystemDoctorPanel doctor={doctor} /> : <p className="empty">Run doctor to verify Node, Git, native CLI backends, storage, and bind warnings.</p>}
         </section>
 
         <section>
@@ -4649,6 +4667,9 @@ function NewSessionDialog({
           {draft.backendId === "claude" ? (
             <small>Claude Code sessions use a fixed Workbench-created Claude session ID from the first attach, then reopen with claude --resume.</small>
           ) : null}
+          {draft.backendId === "qwen" ? (
+            <small>Qwen Code sessions start with a fixed Workbench-created Qwen session ID, then reopen with qwen --resume after Qwen writes session history.</small>
+          ) : null}
         </div>
         <footer>
           <button className="secondary" onClick={onCancel} type="button">
@@ -4732,7 +4753,7 @@ function NativeSessionImportDialog({
       >
         <header>
           <h2 id="native-session-import-title">Import native CLI session</h2>
-          <p>{project.name} · open or import an existing Gemini, Codex, or Claude session into a linked Workbench session.</p>
+          <p>{project.name} · open or import an existing Gemini, Codex, Claude, or Qwen session into a linked Workbench session.</p>
         </header>
         <div className="modal-body">
           <div className="resume-gemini-grid">
@@ -6103,20 +6124,89 @@ function detailRecommendedActionReason(overview: SessionOverview): string {
   return "Recommended actions reflect the highest-value next move for this session's current delivery and risk state.";
 }
 
-function TerminalProjection({ lines, task }: { lines: string[]; task?: Task }): React.JSX.Element {
+function TerminalProjection({
+  lines,
+  onZoomIn,
+  onZoomOut,
+  task,
+  zoom,
+}: {
+  lines: TerminalProjectionLine[];
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  task?: Task;
+  zoom: number;
+}): React.JSX.Element {
+  const canZoomOut = zoom > MIN_TERMINAL_PROJECTION_ZOOM;
+  const canZoomIn = zoom < MAX_TERMINAL_PROJECTION_ZOOM;
+
   return (
-    <div className="terminal-projection">
+    <div className="terminal-projection" style={{ "--terminal-projection-font-size": `${Math.round(13 * zoom / 100)}px` } as React.CSSProperties}>
       <header>
         <div>
           <h3>{task ? `${task.title} terminal output` : "Terminal output"}</h3>
           <small>Read-only projection from the right-side native terminal. Input stays in the terminal panel.</small>
         </div>
+        <div className="terminal-projection-zoom" aria-label="Terminal projection zoom controls">
+          <button
+            className="secondary compact-button"
+            disabled={!canZoomOut}
+            onClick={onZoomOut}
+            title="Zoom out"
+            type="button"
+          >
+            -
+          </button>
+          <span aria-label="Current zoom">{zoom}%</span>
+          <button
+            className="secondary compact-button"
+            disabled={!canZoomIn}
+            onClick={onZoomIn}
+            title="Zoom in"
+            type="button"
+          >
+            +
+          </button>
+        </div>
       </header>
       <pre aria-label="Projected terminal output">
-        {lines.length > 0 ? lines.join("\n") : "Attach the Agent Terminal on the right to start projecting conversation output here."}
+        {lines.length > 0
+          ? lines.map((line, lineIndex) => (
+              <React.Fragment key={`${lineIndex}-${line.text}`}>
+                {line.runs.length > 0
+                  ? line.runs.map((run, runIndex) => (
+                      <span key={runIndex} style={run.style}>
+                        {run.text}
+                      </span>
+                    ))
+                  : " "}
+                {lineIndex < lines.length - 1 ? "\n" : null}
+              </React.Fragment>
+            ))
+          : "Attach the Agent Terminal on the right to start projecting conversation output here."}
       </pre>
     </div>
   );
+}
+
+function nearestTerminalProjectionZoom(value: number): number {
+  return TERMINAL_PROJECTION_ZOOM_LEVELS.reduce((nearest, candidate) =>
+    Math.abs(candidate - value) < Math.abs(nearest - value) ? candidate : nearest,
+  );
+}
+
+function nextTerminalProjectionZoom(value: number): number {
+  return TERMINAL_PROJECTION_ZOOM_LEVELS.find((candidate) => candidate > value) ?? value;
+}
+
+function previousTerminalProjectionZoom(value: number): number {
+  for (let index = TERMINAL_PROJECTION_ZOOM_LEVELS.length - 1; index >= 0; index -= 1) {
+    const candidate = TERMINAL_PROJECTION_ZOOM_LEVELS[index];
+    if (candidate !== undefined && candidate < value) {
+      return candidate;
+    }
+  }
+  return value;
 }
 
 function SessionWorkspacePanel({
@@ -10242,7 +10332,10 @@ function modeLabel(modeId: string): string {
 }
 
 function isLinkedNativeSession(task?: Task): boolean {
-  return Boolean(task?.agentSessionId && (task.backendId === "gemini" || task.backendId === "gemini-acp" || task.backendId === "codex" || task.backendId === "claude"));
+  return Boolean(
+    task?.agentSessionId &&
+      (task.backendId === "gemini" || task.backendId === "gemini-acp" || task.backendId === "codex" || task.backendId === "claude" || task.backendId === "qwen"),
+  );
 }
 
 function nativeSessionAgentName(task: Task): string {
@@ -10251,6 +10344,9 @@ function nativeSessionAgentName(task: Task): string {
   }
   if (task.backendId === "claude") {
     return "Claude";
+  }
+  if (task.backendId === "qwen") {
+    return "Qwen";
   }
   return "Gemini";
 }
@@ -10262,7 +10358,7 @@ function isLinkedGeminiSession(task?: Task): boolean {
 function isNativeCliSession(task?: Task): boolean {
   return Boolean(
     task?.agentSessionId &&
-      (task.backendId === "gemini" || task.backendId === "gemini-acp" || task.backendId === "codex" || task.backendId === "claude") &&
+      (task.backendId === "gemini" || task.backendId === "gemini-acp" || task.backendId === "codex" || task.backendId === "claude" || task.backendId === "qwen") &&
       (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported")),
   );
 }

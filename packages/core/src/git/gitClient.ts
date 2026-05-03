@@ -56,6 +56,11 @@ export class GitClient {
 
       child.stdout.setEncoding("utf8");
       child.stderr.setEncoding("utf8");
+      child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+        if (error.code !== "EPIPE") {
+          reject(error);
+        }
+      });
       child.stdin.end(input ?? "");
       child.stdout.on("data", (chunk) => {
         stdout += chunk;

@@ -1,10 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
+import { Terminal, type IBufferCell, type IBufferLine } from "@xterm/xterm";
 import type { ServerMessage, Task, UploadSessionImageResponse } from "@agent-workbench/protocol";
 import "@xterm/xterm/css/xterm.css";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+export interface TerminalProjectionRun {
+  style?: React.CSSProperties;
+  text: string;
+}
+
+export interface TerminalProjectionLine {
+  runs: TerminalProjectionRun[];
+  text: string;
+}
 
 interface SpeechRecognitionAlternativeLike {
   transcript: string;
@@ -51,7 +61,7 @@ export function TerminalPanel({
 }: {
   autoAttach?: boolean;
   isProjected?: boolean;
-  onProjectionLinesChange?: (lines: string[]) => void;
+  onProjectionLinesChange?: (lines: TerminalProjectionLine[]) => void;
   onToggleProjection?: () => void;
   task?: Task;
   token: string;
@@ -84,9 +94,11 @@ export function TerminalPanel({
   const linkedGemini = linkedGeminiSessionId(task);
   const linkedCodex = linkedCodexSessionId(task);
   const linkedClaude = linkedClaudeSessionId(task);
+  const linkedQwen = linkedQwenSessionId(task);
   const waitingForGeminiSession = isGeminiWorkbenchSession(task) && !linkedGemini;
   const waitingForCodexSession = isCodexWorkbenchSession(task) && !linkedCodex;
   const waitingForClaudeSession = isClaudeWorkbenchSession(task) && !linkedClaude;
+  const waitingForQwenSession = isQwenWorkbenchSession(task) && !linkedQwen;
 
   useEffect(() => {
     setActiveCommand(undefined);
@@ -605,8 +617,10 @@ export function TerminalPanel({
               ? "Resumes the bound native Gemini session."
               : linkedCodex
                 ? "Resumes the bound native Codex session."
-                : linkedClaude
-                  ? "Resumes the bound native Claude Code session."
+              : linkedClaude
+                ? "Resumes the bound native Claude Code session."
+                : linkedQwen
+                  ? "Resumes the bound native Qwen Code session."
                   : task.worktreePath ?? "No worktree"}
           </small>
         </div>
@@ -648,6 +662,13 @@ export function TerminalPanel({
               {task.agentSessionResumeMode === "resume" ? "claude --resume" : "claude --session-id"} {truncateMiddle(linkedClaude, 18)}
             </p>
           </>
+        ) : linkedQwen ? (
+          <>
+            <strong className="terminal-command-label">Session</strong>
+            <p className="terminal-command-note" title={linkedQwenCommand(task) ?? `qwen --resume ${linkedQwen}`}>
+              {task.agentSessionResumeMode === "resume" ? "qwen --resume" : "qwen --session-id"} {truncateMiddle(linkedQwen, 18)}
+            </p>
+          </>
         ) : waitingForGeminiSession ? (
           <>
             <strong className="terminal-command-label">Session</strong>
@@ -662,6 +683,11 @@ export function TerminalPanel({
           <>
             <strong className="terminal-command-label">Session</strong>
             <p className="terminal-command-note">Attach starts `claude --session-id` with a fixed Workbench id. Future attaches use `claude --resume`.</p>
+          </>
+        ) : waitingForQwenSession ? (
+          <>
+            <strong className="terminal-command-label">Session</strong>
+            <p className="terminal-command-note">Attach starts `qwen --session-id` with a fixed Workbench id. Future attaches use `qwen --resume` after Qwen writes history.</p>
           </>
         ) : (
           <>
@@ -735,6 +761,7 @@ export default TerminalPanel;
 
 const terminalCommandOptions = [
   { label: "Gemini CLI", value: "gemini" },
+  { label: "Qwen Code", value: "qwen" },
   { label: "Claude Code", value: "claude" },
   { label: "OpenCode", value: "opencode" },
   { label: "Codex", value: "codex" },
@@ -753,6 +780,10 @@ function resolvedTerminalCommand(selectedCommand: string, customCommand: string,
   const linkedClaude = linkedClaudeResumeCommand(task);
   if (selectedCommand === "claude" && linkedClaude) {
     return linkedClaude;
+  }
+  const linkedQwen = linkedQwenResumeCommand(task);
+  if (selectedCommand === "qwen" && linkedQwen) {
+    return linkedQwen;
   }
   return selectedCommand === "custom" ? customCommand.trim() : selectedCommand.trim();
 }
@@ -777,6 +808,18 @@ function linkedClaudeResumeCommand(task?: Task): string | undefined {
 
 function linkedClaudeCommand(task?: Task): string | undefined {
   return linkedClaudeResumeCommand(task);
+}
+
+function linkedQwenResumeCommand(task?: Task): string | undefined {
+  const sessionId = linkedQwenSessionId(task);
+  if (!sessionId) {
+    return undefined;
+  }
+  return task?.agentSessionResumeMode === "resume" ? `qwen --resume ${sessionId}` : `qwen --session-id ${sessionId}`;
+}
+
+function linkedQwenCommand(task?: Task): string | undefined {
+  return linkedQwenResumeCommand(task);
 }
 
 function linkedGeminiSessionId(task?: Task): string | undefined {
@@ -818,6 +861,19 @@ function linkedClaudeSessionId(task?: Task): string | undefined {
   return undefined;
 }
 
+function linkedQwenSessionId(task?: Task): string | undefined {
+  if (!task?.agentSessionId) {
+    return undefined;
+  }
+  if (task.backendId !== "qwen") {
+    return undefined;
+  }
+  if (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported")) {
+    return task.agentSessionId;
+  }
+  return undefined;
+}
+
 function defaultTerminalCommandForTask(task?: Task): string {
   return fixedTerminalCommandForTask(task) ?? "gemini";
 }
@@ -828,6 +884,9 @@ function fixedTerminalCommandForTask(task?: Task): string | undefined {
   }
   if (task?.backendId === "claude") {
     return "claude";
+  }
+  if (task?.backendId === "qwen") {
+    return "qwen";
   }
   if (task?.backendId === "gemini" || task?.backendId === "gemini-acp") {
     return "gemini";
@@ -844,40 +903,225 @@ function truncateMiddle(value: string, maxLength: number): string {
 }
 
 function normalizeTerminalOutput(data: string, command: string): string {
-  return isGeminiCliCommand(command) ? removeGeminiBackgroundColors(data) : data;
+  return isGeminiCliCommand(command) || isQwenCliCommand(command) ? removeGeminiBackgroundColors(data) : data;
 }
 
-function projectionLinesFromTerminal(terminal: Terminal): string[] {
+function projectionLinesFromTerminal(terminal: Terminal): TerminalProjectionLine[] {
   const buffer = terminal.buffer.active;
   const start = Math.max(0, buffer.length - 700);
-  const lines: string[] = [];
+  const lines: TerminalProjectionLine[] = [];
   let previousBlank = false;
 
   for (let index = start; index < buffer.length; index += 1) {
-    const line = buffer.getLine(index)?.translateToString(true).replace(/\s+$/g, "") ?? "";
-    if (isTerminalProjectionChromeLine(line)) {
-      continue;
-    }
-    const blank = line.trim().length === 0;
+    const bufferLine = buffer.getLine(index);
+    const lineText = bufferLine?.translateToString(true).replace(/\s+$/g, "") ?? "";
+    const blank = lineText.trim().length === 0;
     if (blank && previousBlank) {
       continue;
     }
-    lines.push(line);
+    lines.push(bufferLine ? terminalProjectionLineFromBufferLine(terminal, bufferLine, lineText) : { runs: [], text: "" });
     previousBlank = blank;
   }
 
-  while (lines.length > 0 && !lines[0]?.trim()) {
+  while (lines.length > 0 && !lines[0]?.text.trim()) {
     lines.shift();
   }
-  return lines.slice(-500);
+  return stripTerminalProjectionChrome(lines).slice(-500);
 }
 
-function isTerminalProjectionChromeLine(line: string): boolean {
+function stripTerminalProjectionChrome(lines: TerminalProjectionLine[]): TerminalProjectionLine[] {
+  const footerStart = terminalProjectionFooterStartIndex(lines);
+  const visibleLines = footerStart >= 0 ? lines.slice(0, footerStart) : lines;
+  const withoutFooter = visibleLines.filter((line) => !isTerminalProjectionAlwaysChromeLine(line.text));
+
+  while (withoutFooter.length > 0 && isTerminalProjectionTrailingChromeLine(withoutFooter[withoutFooter.length - 1]?.text ?? "")) {
+    withoutFooter.pop();
+  }
+  return withoutFooter;
+}
+
+function terminalProjectionFooterStartIndex(lines: TerminalProjectionLine[]): number {
+  let footerStart = -1;
+  for (let index = lines.length - 1; index >= Math.max(0, lines.length - 24); index -= 1) {
+    const line = lines[index]?.text ?? "";
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (footerStart >= 0) {
+        footerStart = index;
+      }
+      continue;
+    }
+    if (isTerminalProjectionDefiniteFooterLine(line)) {
+      footerStart = index;
+      continue;
+    }
+    if (footerStart >= 0 && (isTerminalProjectionPromptLine(line) || isTerminalProjectionSessionTitleLine(line))) {
+      footerStart = index;
+      continue;
+    }
+    break;
+  }
+  return footerStart;
+}
+
+function terminalProjectionLineFromBufferLine(
+  terminal: Terminal,
+  line: IBufferLine,
+  text: string,
+): TerminalProjectionLine {
+  if (!text) {
+    return { runs: [], text };
+  }
+
+  const cell = terminal.buffer.active.getNullCell();
+  const lastColumn = lastContentColumn(line, cell);
+  const runs: TerminalProjectionRun[] = [];
+  let activeKey = "";
+
+  for (let column = 0; column <= lastColumn; column += 1) {
+    const loaded = line.getCell(column, cell);
+    if (!loaded || loaded.getWidth() === 0) {
+      continue;
+    }
+    const chars = loaded.getChars() || " ";
+    const style = terminalProjectionStyleFromCell(loaded);
+    const key = JSON.stringify(style ?? {});
+    const lastRun = runs[runs.length - 1];
+    if (lastRun && key === activeKey) {
+      lastRun.text += chars;
+    } else {
+      runs.push({ style, text: chars });
+      activeKey = key;
+    }
+  }
+
+  return { runs, text };
+}
+
+function lastContentColumn(line: IBufferLine, cell: IBufferCell): number {
+  for (let column = line.length - 1; column >= 0; column -= 1) {
+    const loaded = line.getCell(column, cell);
+    if (!loaded || loaded.getWidth() === 0) {
+      continue;
+    }
+    const chars = loaded.getChars();
+    if (chars && chars.trim().length > 0) {
+      return column;
+    }
+  }
+  return -1;
+}
+
+function terminalProjectionStyleFromCell(cell: IBufferCell): React.CSSProperties | undefined {
+  let foreground = cell.isFgDefault() ? undefined : terminalProjectionColor(cell.getFgColor(), cell.isFgRGB());
+  let background = cell.isBgDefault() ? undefined : terminalProjectionColor(cell.getBgColor(), cell.isBgRGB());
+
+  if (cell.isInverse()) {
+    const nextForeground = background ?? "#101415";
+    background = foreground ?? "#e7e2d7";
+    foreground = nextForeground;
+  }
+
+  const decorations: string[] = [];
+  if (cell.isUnderline()) {
+    decorations.push("underline");
+  }
+  if (cell.isStrikethrough()) {
+    decorations.push("line-through");
+  }
+
+  const style: React.CSSProperties = {};
+  if (foreground) {
+    style.color = foreground;
+  }
+  if (background) {
+    style.backgroundColor = background;
+  }
+  if (cell.isBold()) {
+    style.fontWeight = 700;
+  }
+  if (cell.isItalic()) {
+    style.fontStyle = "italic";
+  }
+  if (cell.isDim()) {
+    style.opacity = 0.72;
+  }
+  if (decorations.length > 0) {
+    style.textDecoration = decorations.join(" ");
+  }
+
+  return Object.keys(style).length > 0 ? style : undefined;
+}
+
+function terminalProjectionColor(value: number, rgb: boolean): string | undefined {
+  if (value < 0) {
+    return undefined;
+  }
+  if (rgb) {
+    return `#${value.toString(16).padStart(6, "0")}`;
+  }
+  return terminalProjectionPaletteColor(value);
+}
+
+function terminalProjectionPaletteColor(index: number): string | undefined {
+  const ansi16 = [
+    "#2e3436",
+    "#cc0000",
+    "#4e9a06",
+    "#c4a000",
+    "#3465a4",
+    "#75507b",
+    "#06989a",
+    "#d3d7cf",
+    "#555753",
+    "#ef2929",
+    "#8ae234",
+    "#fce94f",
+    "#729fcf",
+    "#ad7fa8",
+    "#34e2e2",
+    "#eeeeec",
+  ];
+  if (index >= 0 && index < ansi16.length) {
+    return ansi16[index];
+  }
+  if (index >= 16 && index <= 231) {
+    const offset = index - 16;
+    const red = Math.floor(offset / 36);
+    const green = Math.floor((offset % 36) / 6);
+    const blue = offset % 6;
+    return rgbToHex(colorCubeValue(red), colorCubeValue(green), colorCubeValue(blue));
+  }
+  if (index >= 232 && index <= 255) {
+    const channel = 8 + (index - 232) * 10;
+    return rgbToHex(channel, channel, channel);
+  }
+  return undefined;
+}
+
+function colorCubeValue(value: number): number {
+  return value === 0 ? 0 : 55 + value * 40;
+}
+
+function rgbToHex(red: number, green: number, blue: number): string {
+  return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function isTerminalProjectionAlwaysChromeLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) {
     return false;
   }
   if (/^[─━═▄▀\s]+$/.test(trimmed)) {
+    return true;
+  }
+  if (trimmed.startsWith("[Agent Workbench terminal]")) {
+    return true;
+  }
+  if (/^command:\s+(gemini|codex|claude|qwen|exec|bash|\/bin\/)/.test(trimmed)) {
+    return true;
+  }
+  if (/^cwd:\s+\/.*\.agent-workbench\/worktrees\//.test(trimmed)) {
     return true;
   }
   if (trimmed.includes("? for shortcuts")) {
@@ -886,7 +1130,13 @@ function isTerminalProjectionChromeLine(line: string): boolean {
   if (trimmed.includes("Shift+Tab to accept edits")) {
     return true;
   }
-  if (trimmed.includes("Type your message or @path/to/file")) {
+  if (/Type\s+your\s+message/.test(trimmed) || trimmed.includes("@path/to/file")) {
+    return true;
+  }
+  if (/^\d+(?:\.\d+)?%\s+used$/.test(trimmed)) {
+    return true;
+  }
+  if (/^\d+\s+GEMINI\.md file$/.test(trimmed)) {
     return true;
   }
   if (/^\d+\s+GEMINI\.md files?/.test(trimmed)) {
@@ -899,6 +1149,72 @@ function isTerminalProjectionChromeLine(line: string): boolean {
     return true;
   }
   return false;
+}
+
+function isTerminalProjectionDefiniteFooterLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (isTerminalProjectionAlwaysChromeLine(line)) {
+    return true;
+  }
+  if (isTerminalProjectionPromptLine(line)) {
+    return true;
+  }
+  if (/^[>›❯❭▸▶]\s+(Type your message|Find and fix a bug in @filename|Implement \{feature\})/.test(trimmed)) {
+    return true;
+  }
+  if (isTerminalProjectionSessionTitleLine(line)) {
+    return true;
+  }
+  if (/^[─━═]+\s*.+\s*[─━═]+$/.test(trimmed) && /Session|Claude|Codex|Gemini|Qwen/i.test(trimmed)) {
+    return true;
+  }
+  if (/^workspace\s+\(\/directory\)/.test(trimmed)) {
+    return true;
+  }
+  if (/^workspace\s+branch\s+sandbox/.test(trimmed)) {
+    return true;
+  }
+  if (/^~\/\.agent-workbench\/worktrees\//.test(trimmed)) {
+    return true;
+  }
+  if (/^~\/\.agent-wo/.test(trimmed)) {
+    return true;
+  }
+  if (/^(gpt-|gemini-|qwen|claude|codex)\S*\s+.*~\/\.agent-workbench\/worktrees\//i.test(trimmed)) {
+    return true;
+  }
+  if (/^[-_./\w]+(?:\s+[-_./\w]+){1,}\s+…?$/.test(trimmed) && /new-branch-|no sandbox|gemini-|gpt-|qwen/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+function isTerminalProjectionPromptLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (/^[>›❯❭▸▶]\s*(?:$|\S)/.test(trimmed)) {
+    return true;
+  }
+  return /^[^\p{L}\p{N}\s]{1,2}\s*$/u.test(trimmed);
+}
+
+function isTerminalProjectionSessionTitleLine(line: string): boolean {
+  const normalized = line.replace(/[─━═│┃┌┐└┘╭╮╰╯\s]+/g, " ").trim();
+  return /\b(?:New\s+Session(?:\s+\d+)?|Session|Claude|Codex|Gemini|Qwen)\b/i.test(normalized)
+    && normalized.length <= 80;
+}
+
+function isTerminalProjectionTrailingChromeLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return true;
+  }
+  if (isTerminalProjectionAlwaysChromeLine(line) || isTerminalProjectionDefiniteFooterLine(line)) {
+    return true;
+  }
+  return /^[>›❯❭▸▶]\s*$/.test(trimmed);
 }
 
 function removeGeminiBackgroundColors(data: string): string {
@@ -937,6 +1253,10 @@ function isGeminiCliCommand(command: string): boolean {
   return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
 }
 
+function isQwenCliCommand(command: string): boolean {
+  return command === "qwen" || /^qwen\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
+}
+
 function isClaudeCliCommand(command: string): boolean {
   return command === "claude" || /^claude\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
 }
@@ -955,6 +1275,10 @@ function isCodexWorkbenchSession(task?: Task): boolean {
 
 function isClaudeWorkbenchSession(task?: Task): boolean {
   return task?.backendId === "claude";
+}
+
+function isQwenWorkbenchSession(task?: Task): boolean {
+  return task?.backendId === "qwen";
 }
 
 function installTerminalPasteListener(container: HTMLDivElement, onPaste: (event: ClipboardEvent) => void): () => void {

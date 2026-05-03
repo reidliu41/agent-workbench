@@ -179,10 +179,10 @@ async function main() {
       headers: { "content-type": "application/json" },
       method: "POST",
     });
-    const rolledBackContent = await readFile(join(repo, "readme.md"), "utf8");
+    const rolledBackContent = await readFile(join(worktree, "readme.md"), "utf8");
     assert(rolledBackContent.includes("snapshot-one"), "selected snapshot rollback did not apply snapshot-one");
     assert(!rolledBackContent.includes("snapshot-two"), "selected snapshot rollback incorrectly applied latest snapshot");
-    assert(rollbackMarker.kind === "rollback", "rollback should create a marker snapshot");
+    assert(rollbackMarker.rollbackSnapshot?.kind === "rollback", "rollback should create a marker snapshot");
     pass("selected snapshot rollback");
 
     await terminalSmoke(port);
@@ -362,16 +362,16 @@ async function terminalSmoke(port) {
         cols: 80,
         command: "printf terminal-smoke",
         rows: 24,
-        taskId,
+        taskId: terminalTaskId,
         type: "terminal.restart",
       }));
     });
     socket.on("message", (raw) => {
       const message = JSON.parse(raw.toString());
-      if (message.type === "terminal.output") {
+      if (message.type === "terminal.output" && message.taskId === terminalTaskId) {
         output += message.data || "";
       }
-      if (message.type === "terminal.status" && message.terminal?.status === "exited") {
+      if (message.type === "terminal.status" && message.taskId === terminalTaskId && message.terminal?.status === "exited") {
         clearTimeout(timeout);
         socket.close();
         if (!output.includes("terminal-smoke")) {
