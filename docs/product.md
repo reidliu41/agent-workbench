@@ -59,6 +59,8 @@ For development work, the value is immediate review:
 - Text files can be opened and edited.
 - Diffs are shown inline with line numbers and added/removed highlighting.
 - File edits can be saved back to the isolated session worktree.
+- Session Notes preserve human-written plans, review summaries, rules, and handoff context without touching the project diff.
+- Notes are edited as Markdown and rendered after save so operators can keep structured context beside the agent work.
 
 ### Native CLI First
 
@@ -169,6 +171,18 @@ The Changes tab shows:
 - delivery,
 - snapshots,
 - terminal projection.
+
+### Session Notes
+
+The Notes tab is for human-owned context that should travel with the Workbench session but should not become part of the repository:
+
+- implementation plan,
+- review checklist,
+- assumptions and constraints,
+- handoff notes,
+- reminders for later review.
+
+Notes are stored in Workbench session metadata, not in the git worktree. Edit mode keeps the raw Markdown text. Read-only mode renders Markdown for quick scanning.
 
 ### Delivery
 

@@ -1002,6 +1002,17 @@ export class WorkbenchOrchestrator {
     return updated;
   }
 
+  async updateSessionNotes(taskId: string, notes: string): Promise<Task> {
+    const task = await this.options.store.getTask(taskId);
+    if (!task) {
+      throw new Error("Task not found.");
+    }
+    if (notes.length > 20000) {
+      throw new Error("Session notes must be 20000 characters or fewer.");
+    }
+    return this.updateTask({ ...task, notes, updatedAt: new Date().toISOString() });
+  }
+
   async listSessionBranches(taskId: string): Promise<SessionBranchListResponse> {
     const { task, worktreePath } = await this.requireSession(taskId);
     const updated = await this.updateTask({

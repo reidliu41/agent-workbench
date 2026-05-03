@@ -83,7 +83,7 @@ type OverviewRowAction = "apply" | "cancel" | "clear_queue" | "create_branch" | 
 type OverviewFilter = "all" | "needs_action" | "running" | "review" | "blocked" | "overlap";
 type OverviewSort = "priority" | "recent" | "project";
 type OverviewGroupId = "attention" | "quiet" | "ready" | "running";
-type SessionWorkspaceTab = "changes" | "work" | "snapshots" | "debug" | "shell";
+type SessionWorkspaceTab = "changes" | "work" | "snapshots" | "debug" | "shell" | "notes";
 const nativeSessionBackendOptions: Array<{ id: NativeCliBackendId; label: string; placeholder: string }> = [
   { id: "gemini-acp", label: "Gemini CLI", placeholder: "7488de20-aa48-4775-a09f-79e2738cec80" },
   { id: "codex", label: "OpenAI Codex", placeholder: "codex resume id" },
@@ -460,7 +460,7 @@ function App(): React.JSX.Element {
   const selectedTaskRunning = isTaskRunning(selectedTask);
 
   useEffect(() => {
-    if (sessionTab === "work" || sessionTab === "changes" || sessionTab === "snapshots" || sessionTab === "debug" || sessionTab === "shell") {
+    if (sessionTab === "work" || sessionTab === "changes" || sessionTab === "snapshots" || sessionTab === "debug" || sessionTab === "shell" || sessionTab === "notes") {
       return;
     }
     setSessionTab("changes");
@@ -885,6 +885,19 @@ function App(): React.JSX.Element {
     } finally {
       setIsRenaming(false);
     }
+  }
+
+  async function saveSessionNotes(task: Task, notes: string): Promise<Task> {
+    setError(undefined);
+    setNotice(undefined);
+    const updated = await api<Task>(`/api/sessions/${task.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes }),
+    });
+    setTasks((current) => upsert(current, updated));
+    setNotice("Saved session notes.");
+    await loadOverviews();
+    return updated;
   }
 
   async function runSystemDoctor(): Promise<void> {
@@ -1647,6 +1660,7 @@ function App(): React.JSX.Element {
                   onApproval={respondApproval}
                   onCreateSnapshot={(input) => (selectedTask ? createSnapshot(selectedTask, input) : Promise.reject(new Error("Select a session first.")))}
                   onRefreshChanges={() => (selectedTask ? refreshSessionWorkspace(selectedTask.id) : Promise.resolve())}
+                  onSaveNotes={(notes) => (selectedTask ? saveSessionNotes(selectedTask, notes) : Promise.reject(new Error("Select a session first.")))}
                   onSelectTab={setSessionTab}
                   onSelectSnapshot={setSelectedSnapshotId}
                   onSnapshotsChange={setSnapshots}
@@ -5030,6 +5044,8 @@ function sessionWorkspaceTabTitle(tab: SessionWorkspaceTab): string {
       return "Diagnostics";
     case "shell":
       return "Terminal";
+    case "notes":
+      return "Notes";
   }
 }
 
@@ -5050,6 +5066,7 @@ function SessionWorkspaceTabs({
     { id: "snapshots", label: "Snapshots", badge: snapshotCount },
     { id: "debug", label: "Diagnostics" },
     { id: "shell", label: "Terminal" },
+    { id: "notes", label: "Notes" },
   ];
   return (
     <nav className="session-tabs" aria-label="Session tabs">
@@ -6220,6 +6237,7 @@ function SessionWorkspacePanel({
   onApproval,
   onCreateSnapshot,
   onRefreshChanges,
+  onSaveNotes,
   onSelectTab,
   onSelectSnapshot,
   onSnapshotsChange,
@@ -6242,6 +6260,7 @@ function SessionWorkspacePanel({
   onApproval: (taskId: string, approvalId: string, decision: ApprovalDecision) => Promise<void>;
   onCreateSnapshot: (input: CreateSessionSnapshotRequest) => Promise<SessionSnapshot>;
   onRefreshChanges: () => Promise<void>;
+  onSaveNotes: (notes: string) => Promise<Task>;
   onSelectTab: (tab: SessionWorkspaceTab) => void;
   onSelectSnapshot: (snapshotId: string) => void;
   onSnapshotsChange: (snapshots: SessionSnapshot[]) => void;
@@ -6338,6 +6357,13 @@ function SessionWorkspacePanel({
       </div>
     );
   }
+  if (tab === "notes") {
+    return (
+      <div className="session-workspace-panel">
+        <SessionNotesPanel onSave={onSaveNotes} task={task} />
+      </div>
+    );
+  }
   return (
     <div className="session-workspace-panel debug-panel">
       <SessionActions busyAction={busyAction} diff={diff} onAction={onAction} task={task} variant="agent" />
@@ -6375,6 +6401,87 @@ function SessionWorkspacePanel({
         {events.length === 0 ? <p className="empty">No events yet.</p> : null}
       </div>
     </div>
+  );
+}
+
+function SessionNotesPanel({
+  onSave,
+  task,
+}: {
+  onSave: (notes: string) => Promise<Task>;
+  task?: Task;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState(task?.notes ?? "");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    setDraft(task?.notes ?? "");
+    setEditing(false);
+    setError(undefined);
+  }, [task?.id, task?.notes]);
+
+  async function saveNotes(): Promise<void> {
+    if (!task || saving) {
+      return;
+    }
+    setSaving(true);
+    setError(undefined);
+    try {
+      const updated = await onSave(draft);
+      setDraft(updated.notes ?? "");
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="session-notes-panel">
+      <header>
+        <div>
+          <h3>Session Notes</h3>
+          <p>Write human planning notes, review summaries, rules, or follow-up context for this session. Notes are saved with Workbench session metadata and do not modify the project repository.</p>
+        </div>
+        <div className="session-notes-actions">
+          {editing ? (
+            <>
+              <button className="secondary compact-button" disabled={saving} onClick={() => {
+                setDraft(task?.notes ?? "");
+                setEditing(false);
+                setError(undefined);
+              }} type="button">
+                Cancel
+              </button>
+              <button className="compact-button" disabled={!task || saving} onClick={() => void saveNotes()} type="button">
+                {saving ? "Saving" : "Save"}
+              </button>
+            </>
+          ) : (
+            <button className="secondary compact-button" disabled={!task} onClick={() => setEditing(true)} type="button">
+              Edit
+            </button>
+          )}
+        </div>
+      </header>
+      {error ? <div className="changes-feedback error">{error}</div> : null}
+      {editing ? (
+        <textarea
+          autoFocus
+          className="session-notes-editor"
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          placeholder="Session summary, plan, rules, review notes, or things future you should remember."
+          value={draft}
+        />
+      ) : (
+        <div className={`session-notes-view ${draft.trim() ? "" : "empty-notes"}`}>
+          {draft.trim() ? <RichMessage className="session-notes-markdown" text={draft} /> : "No notes yet."}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -7700,6 +7807,8 @@ function detailFocusText(tab: SessionWorkspaceTab, overview: SessionOverview): s
       return "Diagnostics shows raw runtime state, context decisions, and verbose event flow for this isolated session.";
     case "shell":
       return "Open an independent shell in the original project repository for manual git, conflict, and inspection work.";
+    case "notes":
+      return "Keep human-authored session plans, review notes, rules, and handoff context outside the project diff.";
   }
 }
 
@@ -9390,15 +9499,31 @@ function renderInlineText(text: string): React.ReactNode[] {
       nodes.push(<code key={`code-${partIndex}`}>{part.slice(1, -1)}</code>);
       continue;
     }
-    const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
-    for (const [boldIndex, boldPart] of boldParts.entries()) {
-      if (!boldPart) {
+    const linkParts = part.split(/(\[[^\]]+\]\((?:https?:\/\/|mailto:|#)[^)]+\))/g);
+    for (const [linkIndex, linkPart] of linkParts.entries()) {
+      if (!linkPart) {
         continue;
       }
-      if (boldPart.startsWith("**") && boldPart.endsWith("**")) {
-        nodes.push(<strong key={`bold-${partIndex}-${boldIndex}`}>{boldPart.slice(2, -2)}</strong>);
-      } else {
-        nodes.push(boldPart);
+      const linkMatch = linkPart.match(/^\[([^\]]+)\]\(((?:https?:\/\/|mailto:|#)[^)]+)\)$/);
+      if (linkMatch) {
+        const href = linkMatch[2] ?? "#";
+        nodes.push(
+          <a className="rich-link" href={href} key={`link-${partIndex}-${linkIndex}`} rel="noreferrer" target={href.startsWith("#") ? undefined : "_blank"}>
+            {linkMatch[1]}
+          </a>,
+        );
+        continue;
+      }
+      const boldParts = linkPart.split(/(\*\*[^*]+\*\*)/g);
+      for (const [boldIndex, boldPart] of boldParts.entries()) {
+        if (!boldPart) {
+          continue;
+        }
+        if (boldPart.startsWith("**") && boldPart.endsWith("**")) {
+          nodes.push(<strong key={`bold-${partIndex}-${linkIndex}-${boldIndex}`}>{boldPart.slice(2, -2)}</strong>);
+        } else {
+          nodes.push(boldPart);
+        }
       }
     }
   }

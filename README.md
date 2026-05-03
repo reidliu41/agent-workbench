@@ -17,6 +17,7 @@ Demo: [Watch Agent Workbench on YouTube](https://youtu.be/wkr-dKIUKNA)
 - 🔁 Native CLI resume binding: Workbench links Gemini, Codex, Claude, and Qwen session IDs and reattaches with resume automatically.
 - 🔎 Native session import for existing Gemini CLI, Codex CLI, Claude Code, and Qwen Code sessions.
 - 👀 Changes view for reviewing CLI/agent edits immediately after they happen.
+- 📝 Session Notes for human plans, review summaries, rules, and handoff context, with Markdown rendering after save.
 - 🛠️ Review-first delivery: session branch, snapshots, add/commit/push, and Draft PR from the isolated worktree.
 - 🧩 Apply patch fallback for moving reviewed session changes into another branch when needed.
 - 🖥️ Enhanced split terminal projection: keep CLI input on the right and project a readable, color-preserving, zoomable transcript into the main workspace.
@@ -89,8 +90,9 @@ Agent Workbench is designed around one default rule: one implementation session 
 8. Let the agent work in its isolated session worktree.
 9. Review changed files in Changes.
 10. Use Take snapshot before risky edits or rollback points.
-11. Use Delivery to add, commit, push, and create a draft PR from the session branch.
-12. Use Apply patch only when you intentionally need to move reviewed changes into another branch.
+11. Use Notes to keep human plans, review summaries, rules, or handoff context for the session. Notes are saved as session metadata and render Markdown after save.
+12. Use Delivery to add, commit, push, and create a draft PR from the session branch.
+13. Use Apply patch only when you intentionally need to move reviewed changes into another branch.
 
 You can also import existing native CLI sessions from the Sessions menu:
 

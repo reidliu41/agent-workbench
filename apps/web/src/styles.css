@@ -2042,6 +2042,17 @@ small {
   color: #f7f2e8;
 }
 
+.rich-link {
+  color: #9fd8ff;
+  text-decoration: underline;
+  text-decoration-color: #3c6574;
+  text-underline-offset: 2px;
+}
+
+.rich-link:hover {
+  color: #c6ecff;
+}
+
 .rich-heading {
   color: #f7f2e8;
   font-size: 15px;
@@ -3372,6 +3383,81 @@ small {
 .debug-panel {
   display: grid;
   gap: 12px;
+}
+
+.session-notes-panel {
+  background: #15191a;
+  border: 1px solid #2a3031;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-height: min(460px, 100%);
+  padding: 14px;
+}
+
+.session-notes-panel header {
+  align-items: start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.session-notes-panel header > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.session-notes-panel h3,
+.session-notes-panel p {
+  margin: 0;
+}
+
+.session-notes-panel p {
+  color: #a9b1aa;
+  max-width: 760px;
+}
+
+.session-notes-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: end;
+}
+
+.session-notes-editor,
+.session-notes-view {
+  background: #101516;
+  border: 1px solid #2f3939;
+  border-radius: 8px;
+  color: #f7f2e8;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 320px;
+  padding: 14px;
+}
+
+.session-notes-editor {
+  font-family: var(--mono);
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
+.session-notes-view {
+  overflow: auto;
+}
+
+.session-notes-markdown {
+  max-width: none;
+}
+
+.session-notes-markdown .rich-code {
+  max-height: none;
+}
+
+.session-notes-view.empty-notes {
+  color: #7f8984;
+  font-family: inherit;
 }
 
 .debug-event-list {

@@ -44,6 +44,7 @@ import type {
   Task,
   ProjectBranchListResponse,
   UpdateProjectRequest,
+  UpdateSessionRequest,
   UpdateSessionBranchRequest,
   UpdateSessionSnapshotRequest,
   UpdateSessionFileRequest,
@@ -343,9 +344,15 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
 
   app.patch("/api/sessions/:id", async (request) => {
     const params = request.params as { id: string };
-    const body = request.body as Partial<RenameSessionRequest>;
-    if (!body.title || typeof body.title !== "string") {
-      throw new Error("Missing required field: title");
+    const body = (request.body ?? {}) as Partial<UpdateSessionRequest & RenameSessionRequest>;
+    if (Object.prototype.hasOwnProperty.call(body, "notes")) {
+      if (typeof body.notes !== "string") {
+        throw new Error("Missing required field: notes");
+      }
+      return orchestrator.updateSessionNotes(params.id, body.notes);
+    }
+    if (typeof body.title !== "string") {
+      throw new Error("Missing required field: title or notes");
     }
     return orchestrator.renameSession(params.id, body.title);
   });

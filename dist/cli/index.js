@@ -46737,6 +46737,16 @@ var WorkbenchOrchestrator = class {
     });
     return updated;
   }
+  async updateSessionNotes(taskId, notes) {
+    const task = await this.options.store.getTask(taskId);
+    if (!task) {
+      throw new Error("Task not found.");
+    }
+    if (notes.length > 2e4) {
+      throw new Error("Session notes must be 20000 characters or fewer.");
+    }
+    return this.updateTask({ ...task, notes, updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  }
   async listSessionBranches(taskId) {
     const { task, worktreePath } = await this.requireSession(taskId);
     const updated = await this.updateTask({
@@ -68026,9 +68036,15 @@ async function createWorkbenchServer(options = {}) {
   });
   app.patch("/api/sessions/:id", async (request) => {
     const params = request.params;
-    const body = request.body;
-    if (!body.title || typeof body.title !== "string") {
-      throw new Error("Missing required field: title");
+    const body = request.body ?? {};
+    if (Object.prototype.hasOwnProperty.call(body, "notes")) {
+      if (typeof body.notes !== "string") {
+        throw new Error("Missing required field: notes");
+      }
+      return orchestrator.updateSessionNotes(params.id, body.notes);
+    }
+    if (typeof body.title !== "string") {
+      throw new Error("Missing required field: title or notes");
     }
     return orchestrator.renameSession(params.id, body.title);
   });

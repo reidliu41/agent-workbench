@@ -127,6 +127,7 @@ export interface Task {
   agentContextStatus?: AgentContextStatus;
   baseBranch?: string;
   modeId?: string;
+  notes?: string;
   worktreePath?: string;
   worktreeBranch?: string;
   branches?: SessionBranch[];
@@ -472,6 +473,11 @@ export interface SetSessionModeRequest {
 
 export interface RenameSessionRequest {
   title: string;
+}
+
+export interface UpdateSessionRequest {
+  notes?: string;
+  title?: string;
 }
 
 export interface SessionFileContentResponse {
