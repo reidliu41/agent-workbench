@@ -17,7 +17,7 @@ ship the session branch with add/commit/push/draft PR
 
 ## Primary Users
 
-- Developers using Gemini CLI, Codex CLI, Claude Code, or Qwen Code for coding tasks.
+- Developers using Gemini CLI, Codex CLI, Claude Code, Qwen Code, or GitHub Copilot CLI for coding tasks.
 - Developers who run multiple tasks in parallel.
 - Developers working over SSH who want a browser-based control surface.
 - Developers who want each agent task isolated in its own branch/worktree until it is reviewed.
@@ -32,7 +32,7 @@ The core problem is not "how to chat with one model." The core problem is operat
 - multiple projects,
 - multiple sessions per project,
 - isolated worktrees,
-- independent native Gemini, Codex, Claude, and Qwen sessions,
+- independent native Gemini, Codex, Claude, Qwen, and Copilot sessions,
 - ready/running/review/needs-action/detached/failed state,
 - changed-file overlap awareness,
 - session search and overview.
@@ -71,6 +71,7 @@ The current backend focus is native coding CLIs:
 - native Codex terminal attach,
 - native Claude Code terminal attach,
 - native Qwen Code terminal attach,
+- native GitHub Copilot CLI terminal attach,
 - native Gemini, Codex, Claude, and Qwen session import/resume,
 - native auth/settings reuse,
 - slash commands available through the native terminal.
@@ -145,6 +146,7 @@ The session can use:
 - attached native Codex terminal,
 - attached native Claude Code terminal,
 - attached native Qwen Code terminal,
+- attached native GitHub Copilot CLI terminal,
 - raw terminal fallback for manual work.
 
 The right-side Agent Terminal preserves the native CLI experience. The Split button projects a read-only, color-preserving terminal transcript into the center workspace while keeping input in the terminal panel.
@@ -154,7 +156,7 @@ The projection is intentionally not another input surface. It is a review surfac
 - terminal colors and basic cell styling are preserved,
 - CLI prompt/footer/status areas are filtered out,
 - the center workspace can be zoomed independently from the real terminal,
-- Gemini, Codex, Claude Code, and Qwen Code can keep their native command loops.
+- Gemini, Codex, Claude Code, Qwen Code, and GitHub Copilot CLI can keep their native command loops.
 
 ### Review Changes
 
@@ -207,7 +209,7 @@ Current version includes:
 
 - local web app,
 - local token auth,
-- Gemini, Codex, Claude, and Qwen native terminal workflows,
+- Gemini, Codex, Claude, Qwen, and GitHub Copilot native terminal workflows,
 - git/worktree based isolation,
 - review/diff/snapshot/delivery workflow.
 

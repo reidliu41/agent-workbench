@@ -19,7 +19,7 @@ export type AgentContextStatus =
   | "transcript_fallback"
   | "unknown";
 
-export type BackendKind = "gemini" | "codex" | "claude" | "qwen" | "generic-pty" | "external";
+export type BackendKind = "gemini" | "codex" | "claude" | "qwen" | "copilot" | "generic-pty" | "external";
 
 export type AgentCapability =
   | "terminal"
@@ -238,7 +238,7 @@ export interface GeminiProjectSession {
   summary?: string;
 }
 
-export type NativeCliBackendId = "gemini-acp" | "codex" | "claude" | "qwen";
+export type NativeCliBackendId = "gemini-acp" | "codex" | "claude" | "qwen" | "copilot";
 
 export interface NativeCliProjectSession {
   backendId: NativeCliBackendId;

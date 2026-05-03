@@ -14,6 +14,7 @@ Implemented core:
 - Codex terminal attach,
 - Claude Code terminal attach,
 - Qwen Code terminal attach,
+- GitHub Copilot CLI terminal attach,
 - isolated worktrees,
 - Changes review workspace,
 - editable file content,
@@ -49,10 +50,11 @@ Immediate areas:
 - remove sessions,
 - import native Gemini, Codex, and Claude sessions,
 - import existing Qwen Code sessions through the project-path bridge,
+- create new GitHub Copilot CLI sessions with fixed Workbench-managed session IDs,
 - overview state,
 - stuck/blocked visibility,
 - independent terminal attach.
-- split terminal projection for Gemini, Codex, Claude Code, and Qwen Code.
+- split terminal projection for Gemini, Codex, Claude Code, Qwen Code, and GitHub Copilot CLI.
 
 ### Review
 

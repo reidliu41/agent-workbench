@@ -1,4 +1,5 @@
 export * from "./claude/claudeTerminalBackend.js";
+export * from "./copilot/copilotTerminalBackend.js";
 export * from "./codex/codexTerminalBackend.js";
 export * from "./gemini/geminiAcpBackend.js";
 export * from "./gemini/geminiBackend.js";

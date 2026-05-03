@@ -23,7 +23,7 @@ Local Node Gateway
 Local machine
   git repositories
   isolated worktrees
-  Gemini CLI / Codex CLI / Claude Code / Qwen Code
+  Gemini CLI / Codex CLI / Claude Code / Qwen Code / GitHub Copilot CLI
 ```
 
 The browser never directly reads local files or spawns local processes. All privileged actions go through the local gateway.
@@ -131,6 +131,7 @@ Agent backend adapters:
 - native Codex terminal,
 - native Claude Code terminal,
 - native Qwen Code terminal,
+- native GitHub Copilot CLI terminal,
 - generic PTY backend.
 
 The adapter boundary is intentionally capability-based so future agents can be added without rewriting the UI.
@@ -164,7 +165,7 @@ Draft PR can run the whole chain automatically.
 
 There are two different terminal concepts:
 
-- Agent Terminal: native Gemini, Codex, Claude, or Qwen CLI session attached to the selected Workbench session.
+- Agent Terminal: native Gemini, Codex, Claude, Qwen, or Copilot CLI session attached to the selected Workbench session.
 - Project shell: manual shell in the selected session worktree for tests, git inspection, and operator fixes.
 
 They are intentionally separate.

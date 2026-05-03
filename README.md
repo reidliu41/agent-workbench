@@ -13,8 +13,8 @@ Demo: [Watch Agent Workbench on YouTube](https://youtu.be/wkr-dKIUKNA)
 - 🚀 Multi-project management for local git repositories.
 - 🔥 Multi-agent and multi-session workflow, with each session isolated from the others.
 - 📊 Session Overview dashboard for current progress, status, blockers, changed files, and review state.
-- 🤖 Gemini CLI, Codex CLI, Claude Code, and Qwen Code support through native terminal attach.
-- 🔁 Native CLI resume binding: Workbench links Gemini, Codex, Claude, and Qwen session IDs and reattaches with resume automatically.
+- 🤖 Gemini CLI, Codex CLI, Claude Code, Qwen Code, and GitHub Copilot CLI support through native terminal attach.
+- 🔁 Native CLI resume binding: Workbench links Gemini, Codex, Claude, Qwen, and Copilot session IDs and reattaches with resume automatically.
 - 🔎 Native session import for existing Gemini CLI, Codex CLI, Claude Code, and Qwen Code sessions.
 - 👀 Changes view for reviewing CLI/agent edits immediately after they happen.
 - 📝 Session Notes for human plans, review summaries, rules, and handoff context, with Markdown rendering after save.
@@ -31,10 +31,19 @@ Requirements:
 - Node.js 20.19 or newer
 - npm
 - git
-- Gemini CLI installed and authenticated for Gemini-backed sessions
-- Codex CLI installed and authenticated for Codex-backed sessions
-- Claude Code installed and authenticated for Claude-backed sessions
-- Qwen Code installed and authenticated for Qwen-backed sessions
+
+<details>
+<summary>CLI support</summary>
+
+Install and authenticate the CLIs you want to use:
+
+- Gemini CLI for Gemini-backed sessions
+- Codex CLI for Codex-backed sessions
+- Claude Code for Claude-backed sessions
+- Qwen Code for Qwen-backed sessions
+- GitHub Copilot CLI for Copilot-backed sessions
+
+</details>
 
 Install the published package:
 
@@ -83,7 +92,7 @@ Agent Workbench is designed around one default rule: one implementation session 
 1. Open the Workbench URL in a browser.
 2. Add a local git project.
 3. Create a new session and choose a unique session branch.
-4. Choose Gemini CLI, Gemini ACP, Codex CLI, Claude Code, or Qwen Code for the session.
+4. Choose Gemini CLI, Gemini ACP, Codex CLI, Claude Code, Qwen Code, or GitHub Copilot CLI for the session.
 5. Attach the native terminal from the right panel.
 6. Workbench starts the selected CLI inside the isolated session worktree.
 7. Workbench records the native CLI session ID and uses resume on later attaches.
@@ -94,7 +103,10 @@ Agent Workbench is designed around one default rule: one implementation session 
 12. Use Delivery to add, commit, push, and create a draft PR from the session branch.
 13. Use Apply patch only when you intentionally need to move reviewed changes into another branch.
 
-You can also import existing native CLI sessions from the Sessions menu:
+<details>
+<summary>Import existing native CLI sessions</summary>
+
+You can import existing native CLI sessions from the Sessions menu:
 
 - Gemini CLI sessions from Gemini's local session store.
 - Codex CLI sessions from Codex rollout metadata.
@@ -103,9 +115,12 @@ You can also import existing native CLI sessions from the Sessions menu:
 
 Imported sessions become regular Workbench sessions and reopen through each CLI's resume command.
 
+</details>
+
 ## CLI Backends
 
-Gemini CLI:
+<details>
+<summary>Gemini CLI</summary>
 
 - Native terminal attach starts `gemini`.
 - After Gemini creates a native session ID, Workbench records it.
@@ -113,21 +128,30 @@ Gemini CLI:
 - Gemini ACP remains available for structured tool events where supported.
 - The Split button projects a read-only, color-preserving Gemini terminal transcript into the center workspace while input stays in the terminal.
 
-Codex CLI:
+</details>
+
+<details>
+<summary>Codex CLI</summary>
 
 - Native terminal attach starts `codex --cd <session-worktree>`.
 - After Codex writes its rollout metadata, Workbench records the Codex session ID.
 - Later attaches use `codex resume --cd <session-worktree> <id>`.
 - Codex slash commands, approvals, skills, and model controls stay native inside Codex CLI.
 
-Claude Code:
+</details>
+
+<details>
+<summary>Claude Code</summary>
 
 - Native terminal attach starts `claude --session-id <id>` in the session worktree.
 - Workbench creates the Claude session ID up front, so the AW session and Claude session are bound from the first attach.
 - Later attaches use `claude --resume <id>`.
 - Claude Code slash commands, plugins, skills, hooks, permissions, and model controls stay native inside Claude Code.
 
-Qwen Code:
+</details>
+
+<details>
+<summary>Qwen Code</summary>
 
 - Native terminal attach starts `qwen --session-id <id>` in the session worktree.
 - Workbench creates the Qwen session ID up front, so the AW session and Qwen session are bound from the first attach.
@@ -135,13 +159,29 @@ Qwen Code:
 - Existing Qwen sessions can be imported; Workbench rewrites the local Qwen session history path for the isolated worktree so resume works inside the AW session.
 - Qwen Code slash commands, memory, approvals, and model controls stay native inside Qwen Code.
 
-Split projection:
+</details>
+
+<details>
+<summary>GitHub Copilot CLI</summary>
+
+- Native terminal attach starts `copilot --resume=<id>` in the session worktree.
+- Workbench creates the Copilot session ID up front, so the AW session and Copilot session are bound from the first attach. Copilot does not allow `--name` together with `--resume`, so Workbench keeps the human session title in AW metadata.
+- Later attaches use `copilot --resume=<id>`.
+- Copilot slash commands, MCP, custom agents, permissions, and rollback stay native inside GitHub Copilot CLI.
+- Existing Copilot session import is not wired yet; this first integration path is new Workbench-managed Copilot sessions.
+
+</details>
+
+<details>
+<summary>Split projection</summary>
 
 - The right-side Agent Terminal remains the real interactive CLI.
 - Split projects a read-only transcript into the center workspace for easier review.
 - Projection preserves terminal cell colors and basic text styling.
 - Projection filters the live input/footer/status area so the center view focuses on conversation and output.
 - Projection has local zoom controls from 80% to 200%.
+
+</details>
 
 ## Development
 
@@ -170,6 +210,7 @@ npm run smoke
 - [Codex CLI](https://github.com/openai/codex) - OpenAI's command-line coding agent.
 - [Claude Code](https://github.com/anthropics/claude-code) - Anthropic's command-line coding agent.
 - [Qwen Code](https://github.com/QwenLM/qwen-code) - Qwen's command-line coding agent.
+- [GitHub Copilot CLI](https://github.com/features/copilot/cli) - GitHub's terminal coding agent.
 - [React](https://react.dev/) - User interface library.
 - [Vite](https://vite.dev/) - Fast frontend build tool and development server.
 - [Fastify](https://fastify.dev/) - Local HTTP and WebSocket server.
@@ -180,7 +221,7 @@ npm run smoke
 
 Agent Workbench is built around the idea that native coding CLIs should keep their terminal-first power while gaining a web dashboard for multi-session supervision, review, snapshots, and delivery.
 
-Gemini CLI, Codex CLI, Claude Code, and Qwen Code are the main native CLI workflows for the current release.
+Gemini CLI, Codex CLI, Claude Code, Qwen Code, and GitHub Copilot CLI are the main native CLI workflows for the current release.
 
 ## Documentation
 

@@ -2,7 +2,7 @@
 
 ## Current Adapter Priority
 
-Gemini CLI remains the first structured backend, but Workbench now also supports native terminal backends for Codex CLI, Claude Code, and Qwen Code.
+Gemini CLI remains the first structured backend, but Workbench now also supports native terminal backends for Codex CLI, Claude Code, Qwen Code, and GitHub Copilot CLI.
 
 Current adapter paths:
 
@@ -11,8 +11,9 @@ Current adapter paths:
 3. Native Codex CLI terminal attach.
 4. Native Claude Code terminal attach.
 5. Native Qwen Code terminal attach.
-6. One-shot Gemini fallback for simple/headless use.
-7. Generic PTY fallback for manual or future agent experiments.
+6. Native GitHub Copilot CLI terminal attach.
+7. One-shot Gemini fallback for simple/headless use.
+8. Generic PTY fallback for manual or future agent experiments.
 
 ## Capability Model
 
@@ -135,6 +136,26 @@ This keeps Qwen Code slash commands, memory commands, approvals, and model contr
 Existing Qwen Code sessions can be imported from Qwen's project JSONL history. Because Qwen validates sessions against the current project path, Workbench bridges the selected session into the isolated session worktree and rewrites the stored `cwd` fields to that worktree before using `qwen --resume <id>`.
 
 Qwen support follows the same native-session rule as the other CLIs: Qwen owns the interactive CLI behavior, while Workbench owns the project/session dashboard, worktree isolation, review, snapshots, and delivery.
+
+## Native GitHub Copilot CLI Terminal
+
+GitHub Copilot CLI runs as a native terminal backend inside the isolated session worktree.
+
+Workbench creates a stable Copilot session id when the Workbench session is created. The first attach uses:
+
+```bash
+copilot --resume=<id>
+```
+
+Later attaches use:
+
+```bash
+copilot --resume=<id>
+```
+
+Copilot does not allow `--name` together with `--resume`, so Workbench keeps the human session title in Workbench metadata. This keeps Copilot slash commands, permissions, MCP, custom agents, plugins, and rollback behavior inside GitHub Copilot CLI while Workbench provides dashboard, review, snapshots, apply patch fallback, and delivery.
+
+Existing Copilot session import is not wired yet. The first integration path is Workbench-managed Copilot sessions with fixed session IDs. A later adapter can add Copilot ACP support through `copilot --acp`.
 
 ## Split Terminal Projection
 

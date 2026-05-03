@@ -57,6 +57,7 @@ program.command("doctor").description("Check local prerequisites.").action(async
     checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
     checkCommand(process.env.CLAUDE_CODE_COMMAND ?? "claude", ["--version"]),
     checkCommand(process.env.QWEN_CODE_COMMAND ?? "qwen", ["--version"]),
+    checkCommand(process.env.COPILOT_CLI_COMMAND ?? "copilot", ["--version"]),
     checkStore(storePath),
   ]);
 

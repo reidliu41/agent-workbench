@@ -88,6 +88,8 @@ const nativeSessionBackendOptions: Array<{ id: NativeCliBackendId; label: string
   { id: "gemini-acp", label: "Gemini CLI", placeholder: "7488de20-aa48-4775-a09f-79e2738cec80" },
   { id: "codex", label: "OpenAI Codex", placeholder: "codex resume id" },
   { id: "claude", label: "Claude Code", placeholder: "b7cd7ff9-6fbe-483b-947b-b74daafc4936" },
+  { id: "qwen", label: "Qwen Code", placeholder: "8fd7b8bd-ce34-40d0-a52d-8139c9cd5b5a" },
+  { id: "copilot", label: "GitHub Copilot CLI", placeholder: "0cb916db-26aa-40f2-86b5-1ba81b225fd2" },
 ];
 
 interface PendingConfirmation {
@@ -1613,7 +1615,7 @@ function App(): React.JSX.Element {
                     </select>
                     {selectedTask ? <span className={`context-status ${agentContextClass(selectedTask)}`}>{agentContextLabel(selectedTask)}</span> : null}
                     {selectedTask ? <span className="status">{selectedTask.status}</span> : null}
-                    {selectedTaskRunning ? (
+                    {selectedTaskRunning && selectedOverview?.activeTurn ? (
                       <button className="danger compact-button" disabled={busyAction === "cancel"} onClick={() => void performSessionAction("cancel")} type="button">
                         {busyAction === "cancel" ? "Stopping" : "Stop"}
                       </button>
@@ -1707,7 +1709,7 @@ function App(): React.JSX.Element {
             <div className="session-terminal-header">
               <div>
                 <h3>Agent Terminal</h3>
-                <small>Native agent CLI for this session. Linked Gemini, Codex, Claude, and Qwen sessions reopen with their native resume command.</small>
+                <small>Native agent CLI for this session. Linked Gemini, Codex, Claude, Qwen, and Copilot sessions reopen with their native resume command.</small>
               </div>
               {selectedTask ? <SessionStateBadge overview={selectedOverview} task={selectedTask} /> : null}
             </div>
@@ -4683,6 +4685,9 @@ function NewSessionDialog({
           ) : null}
           {draft.backendId === "qwen" ? (
             <small>Qwen Code sessions start with a fixed Workbench-created Qwen session ID, then reopen with qwen --resume after Qwen writes session history.</small>
+          ) : null}
+          {draft.backendId === "copilot" ? (
+            <small>GitHub Copilot CLI sessions start with a fixed Workbench-created session ID, then reopen with copilot --resume.</small>
           ) : null}
         </div>
         <footer>
@@ -10459,7 +10464,12 @@ function modeLabel(modeId: string): string {
 function isLinkedNativeSession(task?: Task): boolean {
   return Boolean(
     task?.agentSessionId &&
-      (task.backendId === "gemini" || task.backendId === "gemini-acp" || task.backendId === "codex" || task.backendId === "claude" || task.backendId === "qwen"),
+      (task.backendId === "gemini" ||
+        task.backendId === "gemini-acp" ||
+        task.backendId === "codex" ||
+        task.backendId === "claude" ||
+        task.backendId === "qwen" ||
+        task.backendId === "copilot"),
   );
 }
 
@@ -10473,6 +10483,9 @@ function nativeSessionAgentName(task: Task): string {
   if (task.backendId === "qwen") {
     return "Qwen";
   }
+  if (task.backendId === "copilot") {
+    return "Copilot";
+  }
   return "Gemini";
 }
 
@@ -10483,7 +10496,12 @@ function isLinkedGeminiSession(task?: Task): boolean {
 function isNativeCliSession(task?: Task): boolean {
   return Boolean(
     task?.agentSessionId &&
-      (task.backendId === "gemini" || task.backendId === "gemini-acp" || task.backendId === "codex" || task.backendId === "claude" || task.backendId === "qwen") &&
+      (task.backendId === "gemini" ||
+        task.backendId === "gemini-acp" ||
+        task.backendId === "codex" ||
+        task.backendId === "claude" ||
+        task.backendId === "qwen" ||
+        task.backendId === "copilot") &&
       (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported")),
   );
 }

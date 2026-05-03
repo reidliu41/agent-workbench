@@ -75,6 +75,7 @@ Current:
 - native Codex terminal,
 - native Claude Code terminal,
 - native Qwen Code terminal,
+- native GitHub Copilot CLI terminal,
 - generic PTY.
 
 Future:

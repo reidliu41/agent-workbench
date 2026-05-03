@@ -15,6 +15,7 @@ Included:
 - native Codex terminal attach,
 - native Claude Code terminal attach,
 - native Qwen Code terminal attach,
+- native GitHub Copilot CLI terminal attach,
 - Changes review/edit workspace,
 - snapshots,
 - one session -> one branch -> one isolated worktree,
@@ -63,8 +64,8 @@ Focus:
 
 Expected:
 
-- Gemini, Codex, Claude, and Qwen native terminal workflows stable for daily use,
-- at least one additional backend path beyond those three,
+- Gemini, Codex, Claude, Qwen, and GitHub Copilot native terminal workflows stable for daily use,
+- at least one additional backend path beyond those CLIs,
 - reliable session dashboard,
 - reliable review/edit/delivery,
 - clear documentation,

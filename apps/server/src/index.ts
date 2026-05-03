@@ -8,7 +8,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as pty from "node-pty";
 import { EventBus, GitClient, WorkbenchOrchestrator, createLocalToken, createWorkbenchStore, extractToken } from "@agent-workbench/core";
-import { ClaudeTerminalBackend, CodexTerminalBackend, GeminiAcpBackend, GeminiBackend, GenericPtyBackend, QwenTerminalBackend } from "@agent-workbench/adapters";
+import { ClaudeTerminalBackend, CodexTerminalBackend, CopilotTerminalBackend, GeminiAcpBackend, GeminiBackend, GenericPtyBackend, QwenTerminalBackend } from "@agent-workbench/adapters";
 import type {
   ClientMessage,
   AddProjectChangesRequest,
@@ -86,7 +86,7 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
     store,
     git: new GitClient(),
     eventBus,
-    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new ClaudeTerminalBackend(), new QwenTerminalBackend(), new GenericPtyBackend()],
+    backends: [new GeminiAcpBackend(), new GeminiBackend(), new CodexTerminalBackend(), new ClaudeTerminalBackend(), new QwenTerminalBackend(), new CopilotTerminalBackend(), new GenericPtyBackend()],
     worktreeRoot,
   });
   await orchestrator.init();
@@ -156,6 +156,12 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         label: "Qwen Code terminal",
       },
       {
+        command: process.env.COPILOT_CLI_COMMAND ?? "copilot",
+        envVar: "COPILOT_CLI_COMMAND",
+        id: "copilot",
+        label: "GitHub Copilot CLI terminal",
+      },
+      {
         command: process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash",
         envVar: "AGENT_WORKBENCH_FALLBACK_COMMAND",
         id: "generic-pty",
@@ -181,18 +187,19 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
   }));
 
   app.get("/api/system/doctor", async (): Promise<SystemDoctorResponse> => {
-    const [node, git, gemini, codex, claude, qwen, storage] = await Promise.all([
+    const [node, git, gemini, codex, claude, qwen, copilot, storage] = await Promise.all([
       checkCommand("node", ["-v"]),
       checkCommand("git", ["--version"]),
       checkCommand(process.env.GEMINI_CLI_COMMAND ?? "gemini", ["--version"]),
       checkCommand(process.env.CODEX_CLI_COMMAND ?? "codex", ["--version"]),
       checkCommand(process.env.CLAUDE_CODE_COMMAND ?? "claude", ["--version"]),
       checkCommand(process.env.QWEN_CODE_COMMAND ?? "qwen", ["--version"]),
+      checkCommand(process.env.COPILOT_CLI_COMMAND ?? "copilot", ["--version"]),
       store.health(),
     ]);
     const usesJsonStore = extname(storage.path).toLowerCase() === ".json";
     return {
-      checks: [node, git, gemini, codex, claude, qwen],
+      checks: [node, git, gemini, codex, claude, qwen, copilot],
       host,
       port,
       storage: {
@@ -208,6 +215,7 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         codex.ok ? undefined : "Codex CLI is not available; Codex terminal sessions will not work until it is installed and authenticated.",
         claude.ok ? undefined : "Claude Code is not available; Claude terminal sessions will not work until it is installed and authenticated.",
         qwen.ok ? undefined : "Qwen Code is not available; Qwen terminal sessions will not work until it is installed and authenticated.",
+        copilot.ok ? undefined : "GitHub Copilot CLI is not available; Copilot terminal sessions will not work until it is installed and authenticated.",
       ].filter((warning): warning is string => Boolean(warning)),
     };
   });
@@ -884,6 +892,7 @@ interface TerminalHandle {
   recordedStart?: boolean;
   reportedCodexSessionId?: string;
   reportedClaudeSessionId?: string;
+  reportedCopilotSessionId?: string;
   reportedGeminiSessionId?: string;
   reportedQwenSessionId?: string;
   sessionLinkRefresh?: NodeJS.Timeout;
@@ -1124,6 +1133,10 @@ class TerminalManager {
       this.captureQwenSessionFromTerminal(taskId, handle);
       return;
     }
+    if (handle.task.backendId === "copilot") {
+      this.captureCopilotSessionFromTerminal(taskId, handle);
+      return;
+    }
     this.captureGeminiSessionFromTerminal(taskId, handle);
   }
 
@@ -1161,6 +1174,15 @@ class TerminalManager {
     }
     handle.reportedQwenSessionId = sessionId;
     void this.orchestrator.recordTerminalQwenSession(taskId, sessionId).catch(() => undefined);
+  }
+
+  private captureCopilotSessionFromTerminal(taskId: string, handle: TerminalHandle): void {
+    const sessionId = extractCopilotResumeSessionId(handle.buffer.join(""));
+    if (!sessionId || sessionId === handle.reportedCopilotSessionId) {
+      return;
+    }
+    handle.reportedCopilotSessionId = sessionId;
+    void this.orchestrator.recordTerminalCopilotSession(taskId, sessionId).catch(() => undefined);
   }
 
   private broadcast(key: string, message: ServerMessage): void {
@@ -1248,6 +1270,13 @@ function normalizeTerminalCommand(command?: string, task?: Task, worktreePath?: 
     }
     return "qwen";
   }
+  if (task?.backendId === "copilot") {
+    const sessionId = nativeCopilotCliSessionId(task);
+    if (sessionId) {
+      return `copilot --resume=${sessionId}`;
+    }
+    return "copilot";
+  }
   if (!task || (task.backendId !== "gemini" && task.backendId !== "gemini-acp")) {
     return requested;
   }
@@ -1264,6 +1293,9 @@ function defaultTerminalCommand(task?: Task): string {
   }
   if (task?.backendId === "qwen") {
     return "qwen";
+  }
+  if (task?.backendId === "copilot") {
+    return "copilot";
   }
   return "gemini";
 }
@@ -1284,7 +1316,7 @@ function terminalWorktreeCommand(command: string, cwd: string, label = "isolated
 }
 
 function displaySessionId(task: Task): string {
-  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? nativeClaudeCliSessionId(task) ?? nativeQwenCliSessionId(task) ?? task.id;
+  return nativeGeminiCliSessionId(task) ?? nativeCodexCliSessionId(task) ?? nativeClaudeCliSessionId(task) ?? nativeQwenCliSessionId(task) ?? nativeCopilotCliSessionId(task) ?? task.id;
 }
 
 function nativeGeminiCliSessionId(task: Task): string | undefined {
@@ -1319,6 +1351,14 @@ function nativeQwenCliSessionId(task: Task): string | undefined {
     : undefined;
 }
 
+function nativeCopilotCliSessionId(task: Task): string | undefined {
+  return task.agentSessionId &&
+    task.backendId === "copilot" &&
+    (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported"))
+    ? task.agentSessionId
+    : undefined;
+}
+
 function isGeminiTerminalCommand(command: string): boolean {
   return command === "gemini" || /^gemini\s+--resume(?:=|\s+)/.test(command);
 }
@@ -1333,6 +1373,10 @@ function isClaudeTerminalCommand(command: string): boolean {
 
 function isQwenTerminalCommand(command: string): boolean {
   return command === "qwen" || /^qwen\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
+}
+
+function isCopilotTerminalCommand(command: string): boolean {
+  return command === "copilot" || /^copilot\s+(--resume|--continue)(?:=|\s|$)/.test(command);
 }
 
 function shellQuote(value: string): string {
@@ -1409,6 +1453,16 @@ function extractQwenResumeSessionId(raw: string): string | undefined {
     return resumeMatch[1];
   }
   return undefined;
+}
+
+function extractCopilotResumeSessionId(raw: string): string | undefined {
+  const text = stripTerminalControl(raw);
+  const resumeMatch = text.match(/copilot\s+--resume(?:=|\s+)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (resumeMatch?.[1]) {
+    return resumeMatch[1];
+  }
+  const sessionMatch = text.match(/\bSession ID:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  return sessionMatch?.[1];
 }
 
 function stripTerminalControl(value: string): string {

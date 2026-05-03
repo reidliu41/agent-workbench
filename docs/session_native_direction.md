@@ -20,7 +20,7 @@ The product should help operators manage that complexity.
 
 ## Native CLI Sessions
 
-For Gemini CLI, Codex CLI, Claude Code, and Qwen Code, Workbench should preserve native behavior:
+For Gemini CLI, Codex CLI, Claude Code, Qwen Code, and GitHub Copilot CLI, Workbench should preserve native behavior:
 
 - native session IDs,
 - native terminal attach,
@@ -66,7 +66,7 @@ deliver
 
 The terminal is not just an escape hatch. It preserves native CLI behavior.
 
-For Gemini, Codex, Claude, and Qwen, the attached terminal lets the user keep using the CLI naturally while Workbench tracks changes and delivery.
+For Gemini, Codex, Claude, Qwen, and Copilot, the attached terminal lets the user keep using the CLI naturally while Workbench tracks changes and delivery.
 
 The terminal can be split so the main workspace shows a read-only transcript projection while input remains in the native terminal panel.
 

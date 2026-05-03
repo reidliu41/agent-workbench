@@ -95,10 +95,12 @@ export function TerminalPanel({
   const linkedCodex = linkedCodexSessionId(task);
   const linkedClaude = linkedClaudeSessionId(task);
   const linkedQwen = linkedQwenSessionId(task);
+  const linkedCopilot = linkedCopilotSessionId(task);
   const waitingForGeminiSession = isGeminiWorkbenchSession(task) && !linkedGemini;
   const waitingForCodexSession = isCodexWorkbenchSession(task) && !linkedCodex;
   const waitingForClaudeSession = isClaudeWorkbenchSession(task) && !linkedClaude;
   const waitingForQwenSession = isQwenWorkbenchSession(task) && !linkedQwen;
+  const waitingForCopilotSession = isCopilotWorkbenchSession(task) && !linkedCopilot;
 
   useEffect(() => {
     setActiveCommand(undefined);
@@ -608,9 +610,13 @@ export function TerminalPanel({
                 ? `Codex ${linkedCodex}`
                 : linkedClaude
                   ? `Claude ${linkedClaude}`
-                  : activeCommand
-                    ? activeCommand
-                    : "CLI terminal"}
+                  : linkedQwen
+                    ? `Qwen ${linkedQwen}`
+                    : linkedCopilot
+                      ? `Copilot ${linkedCopilot}`
+                      : activeCommand
+                        ? activeCommand
+                        : "CLI terminal"}
           </strong>
           <small>
             {linkedGemini
@@ -621,7 +627,9 @@ export function TerminalPanel({
                 ? "Resumes the bound native Claude Code session."
                 : linkedQwen
                   ? "Resumes the bound native Qwen Code session."
-                  : task.worktreePath ?? "No worktree"}
+                  : linkedCopilot
+                    ? "Resumes the bound native GitHub Copilot CLI session."
+                    : task.worktreePath ?? "No worktree"}
           </small>
         </div>
         <span className={`terminal-status ${status}`}>{status}</span>
@@ -669,6 +677,13 @@ export function TerminalPanel({
               {task.agentSessionResumeMode === "resume" ? "qwen --resume" : "qwen --session-id"} {truncateMiddle(linkedQwen, 18)}
             </p>
           </>
+        ) : linkedCopilot ? (
+          <>
+            <strong className="terminal-command-label">Session</strong>
+            <p className="terminal-command-note" title={linkedCopilotCommand(task) ?? `copilot --resume=${linkedCopilot}`}>
+              copilot --resume {truncateMiddle(linkedCopilot, 18)}
+            </p>
+          </>
         ) : waitingForGeminiSession ? (
           <>
             <strong className="terminal-command-label">Session</strong>
@@ -688,6 +703,11 @@ export function TerminalPanel({
           <>
             <strong className="terminal-command-label">Session</strong>
             <p className="terminal-command-note">Attach starts `qwen --session-id` with a fixed Workbench id. Future attaches use `qwen --resume` after Qwen writes history.</p>
+          </>
+        ) : waitingForCopilotSession ? (
+          <>
+            <strong className="terminal-command-label">Session</strong>
+            <p className="terminal-command-note">Attach starts `copilot --resume=&lt;id&gt;` with a fixed Workbench id. Future attaches use `copilot --resume`.</p>
           </>
         ) : (
           <>
@@ -762,6 +782,7 @@ export default TerminalPanel;
 const terminalCommandOptions = [
   { label: "Gemini CLI", value: "gemini" },
   { label: "Qwen Code", value: "qwen" },
+  { label: "GitHub Copilot CLI", value: "copilot" },
   { label: "Claude Code", value: "claude" },
   { label: "OpenCode", value: "opencode" },
   { label: "Codex", value: "codex" },
@@ -784,6 +805,10 @@ function resolvedTerminalCommand(selectedCommand: string, customCommand: string,
   const linkedQwen = linkedQwenResumeCommand(task);
   if (selectedCommand === "qwen" && linkedQwen) {
     return linkedQwen;
+  }
+  const linkedCopilot = linkedCopilotResumeCommand(task);
+  if (selectedCommand === "copilot" && linkedCopilot) {
+    return linkedCopilot;
   }
   return selectedCommand === "custom" ? customCommand.trim() : selectedCommand.trim();
 }
@@ -820,6 +845,18 @@ function linkedQwenResumeCommand(task?: Task): string | undefined {
 
 function linkedQwenCommand(task?: Task): string | undefined {
   return linkedQwenResumeCommand(task);
+}
+
+function linkedCopilotResumeCommand(task?: Task): string | undefined {
+  const sessionId = linkedCopilotSessionId(task);
+  if (!sessionId) {
+    return undefined;
+  }
+  return `copilot --resume=${sessionId}`;
+}
+
+function linkedCopilotCommand(task?: Task): string | undefined {
+  return linkedCopilotResumeCommand(task);
 }
 
 function linkedGeminiSessionId(task?: Task): string | undefined {
@@ -874,6 +911,19 @@ function linkedQwenSessionId(task?: Task): string | undefined {
   return undefined;
 }
 
+function linkedCopilotSessionId(task?: Task): string | undefined {
+  if (!task?.agentSessionId) {
+    return undefined;
+  }
+  if (task.backendId !== "copilot") {
+    return undefined;
+  }
+  if (task.agentSessionKind === "native-cli" || (task.agentSessionKind === undefined && task.agentSessionOrigin === "imported")) {
+    return task.agentSessionId;
+  }
+  return undefined;
+}
+
 function defaultTerminalCommandForTask(task?: Task): string {
   return fixedTerminalCommandForTask(task) ?? "gemini";
 }
@@ -887,6 +937,9 @@ function fixedTerminalCommandForTask(task?: Task): string | undefined {
   }
   if (task?.backendId === "qwen") {
     return "qwen";
+  }
+  if (task?.backendId === "copilot") {
+    return "copilot";
   }
   if (task?.backendId === "gemini" || task?.backendId === "gemini-acp") {
     return "gemini";
@@ -941,6 +994,10 @@ function stripTerminalProjectionChrome(lines: TerminalProjectionLine[]): Termina
 }
 
 function terminalProjectionFooterStartIndex(lines: TerminalProjectionLine[]): number {
+  const copilotFooterStart = terminalProjectionCopilotFooterStartIndex(lines);
+  if (copilotFooterStart >= 0) {
+    return copilotFooterStart;
+  }
   let footerStart = -1;
   for (let index = lines.length - 1; index >= Math.max(0, lines.length - 24); index -= 1) {
     const line = lines[index]?.text ?? "";
@@ -962,6 +1019,42 @@ function terminalProjectionFooterStartIndex(lines: TerminalProjectionLine[]): nu
     break;
   }
   return footerStart;
+}
+
+function terminalProjectionCopilotFooterStartIndex(lines: TerminalProjectionLine[]): number {
+  const searchStart = Math.max(0, lines.length - 24);
+  for (let index = lines.length - 1; index >= searchStart; index -= 1) {
+    const trimmed = lines[index]?.text.trim() ?? "";
+    if (isCopilotFooterAnchorLine(trimmed)) {
+      let start = index;
+      for (let cursor = index - 1; cursor >= searchStart; cursor -= 1) {
+        const previous = lines[cursor]?.text.trim() ?? "";
+        if (!previous || isTerminalProjectionAlwaysChromeLine(previous) || isTerminalProjectionPromptLine(previous)) {
+          start = cursor;
+          continue;
+        }
+        break;
+      }
+      return start;
+    }
+  }
+  return -1;
+}
+
+function isCopilotFooterAnchorLine(trimmed: string): boolean {
+  if (/^\/\s+commands\s+·\s+\?\s+help$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^GPT-\d/i.test(trimmed)) {
+    return true;
+  }
+  if (/^~\/\.agent-workbench\/worktrees\/.+\[[^\]]+\]$/.test(trimmed)) {
+    return true;
+  }
+  if (/^~\/\.agent-wo.+\[[^\]]+\]$/.test(trimmed)) {
+    return true;
+  }
+  return false;
 }
 
 function terminalProjectionLineFromBufferLine(
@@ -1118,7 +1211,7 @@ function isTerminalProjectionAlwaysChromeLine(line: string): boolean {
   if (trimmed.startsWith("[Agent Workbench terminal]")) {
     return true;
   }
-  if (/^command:\s+(gemini|codex|claude|qwen|exec|bash|\/bin\/)/.test(trimmed)) {
+  if (/^command:\s+(gemini|codex|claude|qwen|copilot|exec|bash|\/bin\/)/.test(trimmed)) {
     return true;
   }
   if (/^cwd:\s+\/.*\.agent-workbench\/worktrees\//.test(trimmed)) {
@@ -1140,6 +1233,12 @@ function isTerminalProjectionAlwaysChromeLine(line: string): boolean {
     return true;
   }
   if (/^\d+\s+GEMINI\.md files?/.test(trimmed)) {
+    return true;
+  }
+  if (/^\/\s+commands\s+·\s+\?\s+help$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^GPT-\d/i.test(trimmed)) {
     return true;
   }
   if (/\bworkspace\b/.test(trimmed) && /\bbranch\b/.test(trimmed) && /\bsandbox\b/.test(trimmed)) {
@@ -1168,7 +1267,7 @@ function isTerminalProjectionDefiniteFooterLine(line: string): boolean {
   if (isTerminalProjectionSessionTitleLine(line)) {
     return true;
   }
-  if (/^[─━═]+\s*.+\s*[─━═]+$/.test(trimmed) && /Session|Claude|Codex|Gemini|Qwen/i.test(trimmed)) {
+  if (/^[─━═]+\s*.+\s*[─━═]+$/.test(trimmed) && /Session|Claude|Codex|Gemini|Qwen|Copilot/i.test(trimmed)) {
     return true;
   }
   if (/^workspace\s+\(\/directory\)/.test(trimmed)) {
@@ -1180,13 +1279,16 @@ function isTerminalProjectionDefiniteFooterLine(line: string): boolean {
   if (/^~\/\.agent-workbench\/worktrees\//.test(trimmed)) {
     return true;
   }
+  if (/^~\/\.agent-workbench\/worktrees\//.test(trimmed) && /\[[^\]]+\]/.test(trimmed)) {
+    return true;
+  }
   if (/^~\/\.agent-wo/.test(trimmed)) {
     return true;
   }
-  if (/^(gpt-|gemini-|qwen|claude|codex)\S*\s+.*~\/\.agent-workbench\/worktrees\//i.test(trimmed)) {
+  if (/^(gpt-|gemini-|qwen|claude|codex|copilot)\S*\s+.*~\/\.agent-workbench\/worktrees\//i.test(trimmed)) {
     return true;
   }
-  if (/^[-_./\w]+(?:\s+[-_./\w]+){1,}\s+…?$/.test(trimmed) && /new-branch-|no sandbox|gemini-|gpt-|qwen/i.test(trimmed)) {
+  if (/^[-_./\w]+(?:\s+[-_./\w]+){1,}\s+…?$/.test(trimmed) && /new-branch-|no sandbox|gemini-|gpt-|qwen|copilot/i.test(trimmed)) {
     return true;
   }
   return false;
@@ -1202,7 +1304,7 @@ function isTerminalProjectionPromptLine(line: string): boolean {
 
 function isTerminalProjectionSessionTitleLine(line: string): boolean {
   const normalized = line.replace(/[─━═│┃┌┐└┘╭╮╰╯\s]+/g, " ").trim();
-  return /\b(?:New\s+Session(?:\s+\d+)?|Session|Claude|Codex|Gemini|Qwen)\b/i.test(normalized)
+  return /\b(?:New\s+Session(?:\s+\d+)?|Session|Claude|Codex|Gemini|Qwen|Copilot)\b/i.test(normalized)
     && normalized.length <= 80;
 }
 
@@ -1257,6 +1359,10 @@ function isQwenCliCommand(command: string): boolean {
   return command === "qwen" || /^qwen\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
 }
 
+function isCopilotCliCommand(command: string): boolean {
+  return command === "copilot" || /^copilot\s+(--resume|--continue)(?:=|\s|$)/.test(command);
+}
+
 function isClaudeCliCommand(command: string): boolean {
   return command === "claude" || /^claude\s+(--resume|--session-id|-r)(?:=|\s|$)/.test(command);
 }
@@ -1279,6 +1385,14 @@ function isClaudeWorkbenchSession(task?: Task): boolean {
 
 function isQwenWorkbenchSession(task?: Task): boolean {
   return task?.backendId === "qwen";
+}
+
+function isCopilotWorkbenchSession(task?: Task): boolean {
+  return task?.backendId === "copilot";
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function installTerminalPasteListener(container: HTMLDivElement, onPaste: (event: ClipboardEvent) => void): () => void {

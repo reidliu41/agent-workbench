@@ -567,7 +567,7 @@ export class WorkbenchOrchestrator {
     if (!project) {
       throw new Error("Project not found.");
     }
-    const backendIds: NativeCliBackendId[] = backendId ? [backendId] : ["gemini-acp", "codex", "claude", "qwen"];
+    const backendIds: NativeCliBackendId[] = backendId ? [backendId] : ["gemini-acp", "codex", "claude", "qwen", "copilot"];
     const groups = await Promise.all(
       backendIds.map(async (id) => {
         if (id === "gemini-acp") {
@@ -610,6 +610,9 @@ export class WorkbenchOrchestrator {
             startTime: session.startTime,
             summary: session.summary,
           }));
+        }
+        if (id === "copilot") {
+          return [];
         }
         return (await listClaudeProjectSessions(project.path)).map((session): NativeCliProjectSession => ({
           backendId: "claude",
@@ -2413,6 +2416,40 @@ export class WorkbenchOrchestrator {
     );
   }
 
+  async recordTerminalCopilotSession(taskId: string, sessionId: string): Promise<void> {
+    const task = await this.options.store.getTask(taskId);
+    if (!task || !isCopilotBackendId(task.backendId)) {
+      return;
+    }
+    if (task.agentSessionId === sessionId && task.agentSessionKind === "native-cli" && task.agentSessionResumeMode === "resume") {
+      return;
+    }
+    if (task.agentSessionOrigin === "imported" && task.agentSessionId && task.agentSessionId !== sessionId) {
+      return;
+    }
+
+    await this.updateTask({
+      ...task,
+      agentContextStatus: task.agentContextStatus ?? "live",
+      agentSessionId: sessionId,
+      agentSessionKind: "native-cli",
+      agentSessionOrigin: task.agentSessionOrigin ?? "new",
+      agentSessionResumeMode: "resume",
+    });
+    await this.emitAction(
+      task.id,
+      "resume",
+      "completed",
+      "Captured GitHub Copilot CLI resume session.",
+      `GitHub Copilot CLI reported resumable session ${sessionId}.`,
+      {
+        agentSessionId: sessionId,
+        kind: "copilot-session-link",
+        source: "terminal-output",
+      },
+    );
+  }
+
   async recordTerminalNativeSessionCandidate(taskId: string): Promise<void> {
     const task = await this.options.store.getTask(taskId);
     if (!task) {
@@ -2649,6 +2686,9 @@ export class WorkbenchOrchestrator {
     }
     if (isQwenBackendId(task.backendId)) {
       return this.reconcileQwenSessionLink(task);
+    }
+    if (isCopilotBackendId(task.backendId)) {
+      return task;
     }
     return task;
   }
@@ -4102,12 +4142,16 @@ function isQwenBackendId(backendId: string): boolean {
   return backendId === "qwen";
 }
 
+function isCopilotBackendId(backendId: string): boolean {
+  return backendId === "copilot";
+}
+
 function isNativeCliBackendId(backendId: string): boolean {
-  return isGeminiBackendId(backendId) || isCodexBackendId(backendId) || isClaudeBackendId(backendId) || isQwenBackendId(backendId);
+  return isGeminiBackendId(backendId) || isCodexBackendId(backendId) || isClaudeBackendId(backendId) || isQwenBackendId(backendId) || isCopilotBackendId(backendId);
 }
 
 function usesPreallocatedNativeSessionId(backendId: string): boolean {
-  return isClaudeBackendId(backendId) || isQwenBackendId(backendId);
+  return isClaudeBackendId(backendId) || isQwenBackendId(backendId) || isCopilotBackendId(backendId);
 }
 
 async function qwenSessionFileExists(worktreePath: string, sessionId: string): Promise<boolean> {
@@ -4137,6 +4181,9 @@ function nativeCliBackendName(backendId: NativeCliBackendId): string {
   }
   if (backendId === "qwen") {
     return "Qwen Code";
+  }
+  if (backendId === "copilot") {
+    return "GitHub Copilot CLI";
   }
   return "Claude Code";
 }
