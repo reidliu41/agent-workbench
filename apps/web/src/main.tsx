@@ -10,6 +10,8 @@ import type {
   ApprovalRequest,
   BackendCapabilityFeature,
   BackendStatus,
+  BrainstormParticipant,
+  BrainstormParticipantId,
   CreateSessionSnapshotRequest,
   DeleteProjectResponse,
   DiffSummary,
@@ -91,6 +93,14 @@ const nativeSessionBackendOptions: Array<{ id: NativeCliBackendId; label: string
   { id: "qwen", label: "Qwen Code", placeholder: "8fd7b8bd-ce34-40d0-a52d-8139c9cd5b5a" },
   { id: "copilot", label: "GitHub Copilot CLI", placeholder: "0cb916db-26aa-40f2-86b5-1ba81b225fd2" },
 ];
+const brainstormParticipantOptions: Array<{ id: BrainstormParticipantId; label: string; role: string }> = [
+  { id: "claude", label: "Claude Code", role: "architecture and product tradeoffs" },
+  { id: "codex", label: "OpenAI Codex", role: "implementation risk and tests" },
+  { id: "gemini", label: "Gemini CLI", role: "broad repo analysis and alternatives" },
+  { id: "qwen", label: "Qwen Code", role: "second-opinion engineering review" },
+  { id: "copilot", label: "GitHub Copilot CLI", role: "GitHub workflow and delivery ergonomics" },
+];
+const defaultBrainstormParticipants: BrainstormParticipantId[] = [];
 
 interface PendingConfirmation {
   action: ConfirmableAction;
@@ -106,6 +116,8 @@ interface SessionOpenIntent {
 interface NewSessionDraft {
   backendId: string;
   branchName: string;
+  brainstormParticipants: BrainstormParticipantId[];
+  brainstormTopic: string;
   modeId: string;
   projectId: string;
   title: string;
@@ -319,6 +331,7 @@ function App(): React.JSX.Element {
   const [selectedBackendId, setSelectedBackendId] = useState("gemini-acp");
   const [selectedModeId, setSelectedModeId] = useState("default");
   const [newSessionDraft, setNewSessionDraft] = useState<NewSessionDraft>();
+  const [brainstormSelections, setBrainstormSelections] = useState<Record<string, BrainstormParticipantId[]>>({});
   const [sessionTab, setSessionTab] = useState<SessionWorkspaceTab>("changes");
   const [sessionSearch, setSessionSearch] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -456,6 +469,10 @@ function App(): React.JSX.Element {
   );
   const selectedTaskBackend = selectedTask ? backendLabel(backends, selectedTask.backendId) : undefined;
   const terminalProjected = Boolean(selectedTask && projectedTerminalTaskId === selectedTask.id);
+  const selectedTaskBrainstorm = selectedTask?.backendId === "brainstorm-mix";
+  const selectedBrainstormParticipantIds = selectedTaskBrainstorm && selectedTask
+    ? (brainstormSelections[selectedTask.id] ?? selectedTask.brainstorm?.participants.filter((participant) => participant.enabled).map((participant) => participant.id) ?? [])
+    : [];
   const availableCommands = useMemo(() => mergeAvailableCommands(nativeSlashCommands, availableCommandsFromEvents(events)), [events, nativeSlashCommands]);
   const acpCommands = useMemo(() => availableCommandsFromEvents(events), [events]);
   const slashMatches = useMemo(() => commandMatches(prompt, availableCommands), [prompt, availableCommands]);
@@ -627,6 +644,8 @@ function App(): React.JSX.Element {
     setNewSessionDraft({
       backendId: selectedBackendId,
       branchName: nextWorkingBranchName(tasks, activeProject.id),
+      brainstormParticipants: defaultBrainstormParticipants,
+      brainstormTopic: "",
       modeId: selectedModeId,
       projectId: activeProject.id,
       title: nextSessionTitle(tasks, activeProject.id),
@@ -642,6 +661,8 @@ function App(): React.JSX.Element {
     const draft = newSessionDraft ?? {
       backendId: selectedBackendId,
       branchName: nextWorkingBranchName(tasks, activeProject?.id ?? projects[0]?.id ?? ""),
+      brainstormParticipants: defaultBrainstormParticipants,
+      brainstormTopic: "",
       modeId: selectedModeId,
       projectId: activeProject?.id ?? projects[0]?.id ?? "",
       title: nextSessionTitle(tasks, activeProject?.id ?? projects[0]?.id ?? ""),
@@ -661,7 +682,9 @@ function App(): React.JSX.Element {
           projectId: project.id,
           title,
           backendId: draft.backendId,
-          workingBranch: draft.branchName.trim(),
+          brainstormParticipants: undefined,
+          brainstormTopic: draft.backendId === "brainstorm-mix" ? draft.brainstormTopic.trim() : undefined,
+          workingBranch: draft.backendId === "brainstorm-mix" ? undefined : draft.branchName.trim(),
           modeId: draft.modeId,
         }),
       });
@@ -745,6 +768,19 @@ function App(): React.JSX.Element {
     } finally {
       setIsSending(false);
     }
+  }
+
+  async function sendBrainstormPrompt(task: Task, message: string, participants: BrainstormParticipantId[]): Promise<Task> {
+    const updated = await api<Task>(`/api/sessions/${task.id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        brainstormParticipants: participants,
+        prompt: message,
+      }),
+    });
+    setTasks((current) => upsert(current, updated));
+    await loadOverviews();
+    return updated;
   }
 
   async function confirmDeleteSession(): Promise<void> {
@@ -1573,7 +1609,7 @@ function App(): React.JSX.Element {
               {notice ? <div className="notice">{notice}</div> : null}
             </div>
           ) : null}
-          <section className={`timeline ${terminalProjected ? "terminal-projection-shell" : ""}`}>
+          <section className={`timeline ${terminalProjected ? "terminal-projection-shell" : ""} ${selectedTaskBrainstorm ? "brainstorm-timeline-shell" : ""}`}>
             {terminalProjected ? (
               <TerminalProjection
                 lines={terminalProjectionLines}
@@ -1605,29 +1641,44 @@ function App(): React.JSX.Element {
                       ) : null}
                     </div>
                   </div>
-                  <div className="timeline-controls">
-                    <select value={selectedModeId} onChange={(event) => void changeSessionMode(event.target.value)}>
-                      {modeOptions.map((mode) => (
-                        <option key={mode.id} value={mode.id}>
-                          {mode.label}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedTask ? <span className={`context-status ${agentContextClass(selectedTask)}`}>{agentContextLabel(selectedTask)}</span> : null}
-                    {selectedTask ? <span className="status">{selectedTask.status}</span> : null}
-                    {selectedTaskRunning && selectedOverview?.activeTurn ? (
-                      <button className="danger compact-button" disabled={busyAction === "cancel"} onClick={() => void performSessionAction("cancel")} type="button">
-                        {busyAction === "cancel" ? "Stopping" : "Stop"}
+                  {selectedTaskBrainstorm ? (
+                    <div className="timeline-controls">
+                      <button className="secondary compact-button" onClick={() => setSessionTab((current) => current === "notes" ? "changes" : "notes")} type="button">
+                        {sessionTab === "notes" ? "Discussion" : "Notes"}
                       </button>
-                    ) : null}
-                  </div>
+                      {selectedTaskRunning && selectedOverview?.activeTurn ? (
+                        <button className="danger compact-button" disabled={busyAction === "cancel"} onClick={() => void performSessionAction("cancel")} type="button">
+                          {busyAction === "cancel" ? "Stopping" : "Stop"}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="timeline-controls">
+                      <select value={selectedModeId} onChange={(event) => void changeSessionMode(event.target.value)}>
+                        {modeOptions.map((mode) => (
+                          <option key={mode.id} value={mode.id}>
+                            {mode.label}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedTask ? <span className={`context-status ${agentContextClass(selectedTask)}`}>{agentContextLabel(selectedTask)}</span> : null}
+                      {selectedTask ? <span className="status">{selectedTask.status}</span> : null}
+                      {selectedTaskRunning && selectedOverview?.activeTurn ? (
+                        <button className="danger compact-button" disabled={busyAction === "cancel"} onClick={() => void performSessionAction("cancel")} type="button">
+                          {busyAction === "cancel" ? "Stopping" : "Stop"}
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
                 </header>
-                <SessionWorkspaceTabs
-                  active={sessionTab}
-                  diffCount={diff?.summary.filesChanged ?? 0}
-                  onSelect={setSessionTab}
-                  snapshotCount={snapshots.length}
-                />
+                {!selectedTaskBrainstorm ? (
+                  <SessionWorkspaceTabs
+                    active={sessionTab}
+                    diffCount={diff?.summary.filesChanged ?? 0}
+                    onSelect={setSessionTab}
+                    snapshotCount={snapshots.length}
+                  />
+                ) : null}
                 <SessionWorkspacePanel
                   applyConflict={applyConflict}
                   approvalStates={approvalStates}
@@ -1663,10 +1714,17 @@ function App(): React.JSX.Element {
                   onCreateSnapshot={(input) => (selectedTask ? createSnapshot(selectedTask, input) : Promise.reject(new Error("Select a session first.")))}
                   onRefreshChanges={() => (selectedTask ? refreshSessionWorkspace(selectedTask.id) : Promise.resolve())}
                   onSaveNotes={(notes) => (selectedTask ? saveSessionNotes(selectedTask, notes) : Promise.reject(new Error("Select a session first.")))}
+                  onSelectBrainstormParticipants={(participants) => {
+                    if (selectedTask) {
+                      setBrainstormSelections((current) => ({ ...current, [selectedTask.id]: participants }));
+                    }
+                  }}
+                  onSendBrainstorm={(message, participants) => (selectedTask ? sendBrainstormPrompt(selectedTask, message, participants) : Promise.reject(new Error("Select a session first.")))}
                   onSelectTab={setSessionTab}
                   onSelectSnapshot={setSelectedSnapshotId}
                   onSnapshotsChange={setSnapshots}
                   selectedSnapshotId={selectedSnapshotId}
+                  selectedBrainstormParticipants={selectedBrainstormParticipantIds}
                   snapshots={snapshots}
                   tab={sessionTab}
                   task={selectedTask}
@@ -1706,28 +1764,34 @@ function App(): React.JSX.Element {
           />
 
           <aside className="inspector session-terminal-sidebar">
-            <div className="session-terminal-header">
-              <div>
-                <h3>Agent Terminal</h3>
-                <small>Native agent CLI for this session. Linked Gemini, Codex, Claude, Qwen, and Copilot sessions reopen with their native resume command.</small>
-              </div>
-              {selectedTask ? <SessionStateBadge overview={selectedOverview} task={selectedTask} /> : null}
-            </div>
-            <React.Suspense fallback={<p className="empty">Loading terminal...</p>}>
-              <TerminalPanel
-                autoAttach={selectedOverview?.terminal?.status === "running"}
-                isProjected={terminalProjected}
-                key={selectedTask?.id ?? "no-session"}
-                onProjectionLinesChange={setTerminalProjectionLines}
-                onToggleProjection={() => {
-                  if (selectedTask) {
-                    setProjectedTerminalTaskId((current) => current === selectedTask.id ? undefined : selectedTask.id);
-                  }
-                }}
-                task={selectedTask}
-                token={token}
-              />
-            </React.Suspense>
+            {selectedTask?.backendId === "brainstorm-mix" ? (
+              <BrainstormInspector events={events} selectedParticipantIds={selectedBrainstormParticipantIds} task={selectedTask} />
+            ) : (
+              <>
+                <div className="session-terminal-header">
+                  <div>
+                    <h3>Agent Terminal</h3>
+                    <small>Native agent CLI for this session. Linked Gemini, Codex, Claude, Qwen, and Copilot sessions reopen with their native resume command.</small>
+                  </div>
+                  {selectedTask ? <SessionStateBadge overview={selectedOverview} task={selectedTask} /> : null}
+                </div>
+                <React.Suspense fallback={<p className="empty">Loading terminal...</p>}>
+                  <TerminalPanel
+                    autoAttach={selectedOverview?.terminal?.status === "running"}
+                    isProjected={terminalProjected}
+                    key={selectedTask?.id ?? "no-session"}
+                    onProjectionLinesChange={setTerminalProjectionLines}
+                    onToggleProjection={() => {
+                      if (selectedTask) {
+                        setProjectedTerminalTaskId((current) => current === selectedTask.id ? undefined : selectedTask.id);
+                      }
+                    }}
+                    task={selectedTask}
+                    token={token}
+                  />
+                </React.Suspense>
+              </>
+            )}
           </aside>
         </div>
         )}
@@ -4519,6 +4583,7 @@ function NewSessionDialog({
   const [branchError, setBranchError] = useState<string>();
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const branchPickerRef = useRef<HTMLDivElement | null>(null);
+  const isBrainstorm = draft.backendId === "brainstorm-mix";
   const branchAlreadyExists = branches.includes(draft.branchName.trim());
 
   useEffect(() => {
@@ -4586,7 +4651,7 @@ function NewSessionDialog({
       <form
         aria-labelledby="new-session-title"
         aria-modal="true"
-        className="modal"
+        className="modal new-session-modal"
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={onSubmit}
         role="dialog"
@@ -4611,45 +4676,47 @@ function NewSessionDialog({
             </select>
             {selectedProject ? <small>{selectedProject.path}</small> : null}
           </label>
-          <label className="field">
-            <span>Session branch</span>
-            <div className="branch-picker" ref={branchPickerRef}>
-              <input
-                placeholder="new-branch-1"
-                value={draft.branchName}
-                onChange={(event) => onChange({ ...draft, branchName: event.currentTarget.value })}
-              />
-              <button
-                aria-expanded={branchMenuOpen}
-                aria-label="Show branches"
-                className="secondary branch-picker-toggle"
-                onClick={() => setBranchMenuOpen((open) => !open)}
-                type="button"
-              >
-                ▾
-              </button>
-              {branchMenuOpen ? (
-                <div className="branch-picker-menu">
-                  {branches.length > 0 ? branches.map((branch) => (
-                    <button
-                      className="secondary"
-                      key={branch}
-                      onClick={() => {
-                        onChange({ ...draft, branchName: branch });
-                        setBranchMenuOpen(false);
-                      }}
-                      type="button"
-                    >
-                      {branch}
-                    </button>
-                  )) : <small>No branches found.</small>}
-                </div>
-              ) : null}
-            </div>
-            <small>Workbench creates this real branch in a dedicated session worktree. Use a new branch name for each session.</small>
-            {branchAlreadyExists ? <small className="error-text">Branch already exists. Choose a new session branch name.</small> : null}
-            {branchError ? <small className="error-text">{branchError}</small> : null}
-          </label>
+          {!isBrainstorm ? (
+            <label className="field">
+              <span>Session branch</span>
+              <div className="branch-picker" ref={branchPickerRef}>
+                <input
+                  placeholder="new-branch-1"
+                  value={draft.branchName}
+                  onChange={(event) => onChange({ ...draft, branchName: event.currentTarget.value })}
+                />
+                <button
+                  aria-expanded={branchMenuOpen}
+                  aria-label="Show branches"
+                  className="secondary branch-picker-toggle"
+                  onClick={() => setBranchMenuOpen((open) => !open)}
+                  type="button"
+                >
+                  ▾
+                </button>
+                {branchMenuOpen ? (
+                  <div className="branch-picker-menu">
+                    {branches.length > 0 ? branches.map((branch) => (
+                      <button
+                        className="secondary"
+                        key={branch}
+                        onClick={() => {
+                          onChange({ ...draft, branchName: branch });
+                          setBranchMenuOpen(false);
+                        }}
+                        type="button"
+                      >
+                        {branch}
+                      </button>
+                    )) : <small>No branches found.</small>}
+                  </div>
+                ) : null}
+              </div>
+              <small>Workbench creates this real branch in a dedicated session worktree. Use a new branch name for each session.</small>
+              {branchAlreadyExists ? <small className="error-text">Branch already exists. Choose a new session branch name.</small> : null}
+              {branchError ? <small className="error-text">{branchError}</small> : null}
+            </label>
+          ) : null}
           <label className="field">
             <span>Session name</span>
             <input value={draft.title} onChange={(event) => onChange({ ...draft, title: event.target.value })} />
@@ -4664,16 +4731,30 @@ function NewSessionDialog({
               ))}
             </select>
           </label>
-          <label className="field">
-            <span>Mode</span>
-            <select value={draft.modeId} onChange={(event) => onChange({ ...draft, modeId: event.target.value })}>
-              {modeOptions.map((mode) => (
-                <option key={mode.id} value={mode.id}>
-                  {mode.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!isBrainstorm ? (
+            <label className="field">
+              <span>Mode</span>
+              <select value={draft.modeId} onChange={(event) => onChange({ ...draft, modeId: event.target.value })}>
+                {modeOptions.map((mode) => (
+                  <option key={mode.id} value={mode.id}>
+                    {mode.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="brainstorm-setup">
+              <label className="field">
+                <span>Topic</span>
+                <input
+                  placeholder="Optional: what should the agents discuss first?"
+                  value={draft.brainstormTopic}
+                  onChange={(event) => onChange({ ...draft, brainstormTopic: event.currentTarget.value })}
+                />
+              </label>
+              <small>Choose participants later in each Run brainstorm round. You can change them every round.</small>
+            </div>
+          )}
           {draft.backendId === "gemini-acp" ? (
             <small>Gemini ACP sessions create and keep a native Gemini session ID automatically.</small>
           ) : null}
@@ -4689,12 +4770,22 @@ function NewSessionDialog({
           {draft.backendId === "copilot" ? (
             <small>GitHub Copilot CLI sessions start with a fixed Workbench-created session ID, then reopen with copilot --resume.</small>
           ) : null}
+          {isBrainstorm ? (
+            <small>Brainstorm Mix does not create branches, attach terminals, apply patches, or open PRs.</small>
+          ) : null}
         </div>
         <footer>
           <button className="secondary" onClick={onCancel} type="button">
             Cancel
           </button>
-          <button disabled={!draft.projectId || !draft.title.trim() || !draft.branchName.trim() || branchAlreadyExists} type="submit">
+          <button
+            disabled={
+              !draft.projectId ||
+              !draft.title.trim() ||
+              (!isBrainstorm && (!draft.branchName.trim() || branchAlreadyExists))
+            }
+            type="submit"
+          >
             Create session
           </button>
         </footer>
@@ -6127,6 +6218,10 @@ function truncateMiddle(value: string, max: number): string {
   return `${value.slice(0, segment)}...${value.slice(-segment)}`;
 }
 
+function compactOneLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
 function detailRecommendedActionReason(overview: SessionOverview): string {
   if (overview.waitingApprovals > 0) {
     return `Recommended actions are biased toward Apply because ${overview.waitingApprovals} approval request${overview.waitingApprovals === 1 ? "" : "s"} still block progress.`;
@@ -6243,11 +6338,14 @@ function SessionWorkspacePanel({
   onCreateSnapshot,
   onRefreshChanges,
   onSaveNotes,
+  onSelectBrainstormParticipants,
+  onSendBrainstorm,
   onSelectTab,
   onSelectSnapshot,
   onSnapshotsChange,
   panelRef,
   pendingApprovals,
+  selectedBrainstormParticipants,
   selectedSnapshotId,
   snapshots,
   tab,
@@ -6266,11 +6364,14 @@ function SessionWorkspacePanel({
   onCreateSnapshot: (input: CreateSessionSnapshotRequest) => Promise<SessionSnapshot>;
   onRefreshChanges: () => Promise<void>;
   onSaveNotes: (notes: string) => Promise<Task>;
+  onSelectBrainstormParticipants: (participants: BrainstormParticipantId[]) => void;
+  onSendBrainstorm: (message: string, participants: BrainstormParticipantId[]) => Promise<Task>;
   onSelectTab: (tab: SessionWorkspaceTab) => void;
   onSelectSnapshot: (snapshotId: string) => void;
   onSnapshotsChange: (snapshots: SessionSnapshot[]) => void;
   panelRef: React.RefObject<HTMLDivElement | null>;
   pendingApprovals: Set<string>;
+  selectedBrainstormParticipants: BrainstormParticipantId[];
   selectedSnapshotId?: string;
   snapshots: SessionSnapshot[];
   tab: SessionWorkspaceTab;
@@ -6279,6 +6380,18 @@ function SessionWorkspacePanel({
   workEvents: AgentEvent[];
 }): React.JSX.Element {
   const [showAllEvents, setShowAllEvents] = useState(false);
+  if (task?.backendId === "brainstorm-mix" && tab !== "notes") {
+    return (
+      <BrainstormPanel
+        events={events}
+        onSend={onSendBrainstorm}
+        onSelectedParticipantsChange={onSelectBrainstormParticipants}
+        panelRef={panelRef}
+        selectedParticipantIds={selectedBrainstormParticipants}
+        task={task}
+      />
+    );
+  }
   if (tab === "work") {
     const visibleWorkEvents = showAllEvents ? events : workEvents;
     return (
@@ -6407,6 +6520,366 @@ function SessionWorkspacePanel({
       </div>
     </div>
   );
+}
+
+function BrainstormPanel({
+  events,
+  onSend,
+  onSelectedParticipantsChange,
+  panelRef,
+  selectedParticipantIds,
+  task,
+}: {
+  events: AgentEvent[];
+  onSend: (message: string, participants: BrainstormParticipantId[]) => Promise<Task>;
+  onSelectedParticipantsChange: (participants: BrainstormParticipantId[]) => void;
+  panelRef: React.RefObject<HTMLDivElement | null>;
+  selectedParticipantIds: BrainstormParticipantId[];
+  task: Task;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string>();
+  const participants = task.brainstorm?.participants ?? [];
+  const brainstormEvents = events.filter((event) =>
+    event.type === "user.message" ||
+    event.type === "brainstorm.round.started" ||
+    event.type === "brainstorm.agent.started" ||
+    event.type === "brainstorm.agent.response" ||
+    event.type === "brainstorm.round.finished" ||
+    (event.type === "turn.finished" && event.status === "failed"),
+  );
+  const visibleEvents = visibleBrainstormEvents(brainstormEvents);
+  const selectedSet = new Set(selectedParticipantIds);
+  const mentionIds = mentionedBrainstormParticipants(draft, selectedParticipantIds);
+  const effectiveParticipantIds = mentionIds.length > 0 ? mentionIds : selectedParticipantIds;
+
+  useEffect(() => {
+    setDraft("");
+    setError(undefined);
+  }, [task.id]);
+
+  async function submit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    const message = draft.trim();
+    if (!message || sending || effectiveParticipantIds.length === 0) {
+      return;
+    }
+    setSending(true);
+    setError(undefined);
+    try {
+      await onSend(message, effectiveParticipantIds);
+      setDraft("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="brainstorm-panel">
+      <div className="brainstorm-timeline" ref={panelRef}>
+        {visibleEvents.map((event, index) => (
+          <BrainstormEventCard event={event} key={`${event.type}-${index}`} />
+        ))}
+        {visibleEvents.length === 0 ? <p className="empty">No brainstorm rounds yet.</p> : null}
+      </div>
+
+      <form className="brainstorm-composer" onSubmit={(event) => void submit(event)}>
+        <div className="brainstorm-round-participants">
+          {participants.map((participant) => (
+            <label className={`brainstorm-round-participant ${selectedSet.has(participant.id) ? "selected" : ""}`} key={participant.id}>
+              <input
+                checked={selectedSet.has(participant.id)}
+                disabled={sending}
+                onChange={() => {
+                  const next = new Set(selectedParticipantIds);
+                  if (next.has(participant.id)) {
+                    next.delete(participant.id);
+                  } else {
+                    next.add(participant.id);
+                  }
+                  onSelectedParticipantsChange(participants.map((option) => option.id).filter((id) => next.has(id)));
+                }}
+                type="checkbox"
+              />
+              <span>{participant.label}</span>
+            </label>
+          ))}
+        </div>
+        <textarea
+          disabled={sending}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          placeholder="Ask the agents to compare approaches, review a plan, analyze the repo, or challenge an architecture decision."
+          value={draft}
+        />
+        <BrainstormMentionHints
+          draft={draft}
+          onPick={(participantId) => setDraft((current) => insertBrainstormMention(current, participantId))}
+          participants={participants.filter((participant) => selectedSet.has(participant.id))}
+        />
+        <div>
+          {error ? (
+            <span className="error-text">{error}</span>
+          ) : mentionIds.length > 0 ? (
+            <small>Only mentioned agents will respond: {mentionIds.map((id) => participantLabelById(id)).join(", ")}.</small>
+          ) : effectiveParticipantIds.length > 0 ? (
+            <small>Selected agents respond in a fixed order.</small>
+          ) : (
+            <small>Select at least one agent for this round.</small>
+          )}
+          <button disabled={sending || !draft.trim() || effectiveParticipantIds.length === 0} type="submit">
+            {sending ? "Running round" : "Run brainstorm"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function BrainstormMentionHints({
+  draft,
+  onPick,
+  participants,
+}: {
+  draft: string;
+  onPick: (participantId: BrainstormParticipantId) => void;
+  participants: BrainstormParticipant[];
+}): React.JSX.Element | null {
+  const query = currentMentionQuery(draft);
+  if (query === undefined) {
+    return null;
+  }
+  const matches = participants
+    .filter((participant) => brainstormParticipantAliases(participant.id).some((alias) => alias.startsWith(query.toLowerCase())))
+    .slice(0, 5);
+  if (matches.length === 0) {
+    return null;
+  }
+  return (
+    <div className="brainstorm-mention-hints">
+      {matches.map((participant) => (
+        <button className="secondary compact-button" key={participant.id} onClick={() => onPick(participant.id)} type="button">
+          @{participant.id}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function visibleBrainstormEvents(events: AgentEvent[]): AgentEvent[] {
+  const completed = new Set<string>();
+  for (const event of events) {
+    if (event.type === "brainstorm.agent.response") {
+      completed.add(`${event.roundId}:${event.participant.id}`);
+    }
+  }
+  return events.filter((event) => {
+    if (event.type !== "brainstorm.agent.started") {
+      return true;
+    }
+    return !completed.has(`${event.roundId}:${event.participant.id}`);
+  });
+}
+
+function mentionedBrainstormParticipants(text: string, selectedParticipantIds: BrainstormParticipantId[]): BrainstormParticipantId[] {
+  const selected = new Set(selectedParticipantIds);
+  const lower = text.toLowerCase();
+  return brainstormParticipantOptions
+    .map((participant) => participant.id)
+    .filter((id) => selected.has(id) && brainstormParticipantAliases(id).some((alias) => lower.includes(`@${alias}`)));
+}
+
+function currentMentionQuery(text: string): string | undefined {
+  const match = text.match(/(?:^|\s)@([a-z0-9_-]*)$/i);
+  return match ? match[1]?.toLowerCase() ?? "" : undefined;
+}
+
+function insertBrainstormMention(text: string, participantId: BrainstormParticipantId): string {
+  if (/(?:^|\s)@[a-z0-9_-]*$/i.test(text)) {
+    return text.replace(/(?:^|\s)@[a-z0-9_-]*$/i, (match) => `${match.startsWith(" ") ? " " : ""}@${participantId} `);
+  }
+  return `${text}${text.endsWith(" ") || text.length === 0 ? "" : " "}@${participantId} `;
+}
+
+function brainstormParticipantAliases(id: BrainstormParticipantId): string[] {
+  if (id === "gemini") {
+    return ["gemini", "gemini-cli"];
+  }
+  if (id === "codex") {
+    return ["codex", "openai", "openai-codex"];
+  }
+  if (id === "claude") {
+    return ["claude", "claude-code"];
+  }
+  if (id === "qwen") {
+    return ["qwen", "qwen-code"];
+  }
+  return ["copilot", "github-copilot"];
+}
+
+function participantLabelById(id: BrainstormParticipantId): string {
+  return brainstormParticipantOptions.find((participant) => participant.id === id)?.label ?? id;
+}
+
+function BrainstormEventCard({ event }: { event: AgentEvent }): React.JSX.Element | null {
+  if (event.type === "user.message") {
+    return (
+      <article className="brainstorm-card user">
+        <span>User</span>
+        <RichMessage text={event.text} />
+      </article>
+    );
+  }
+  if (event.type === "brainstorm.round.started") {
+    return (
+      <article className="brainstorm-card round">
+        <span>Round started</span>
+        <p>{event.participants.map((participant) => participant.label).join(", ")}</p>
+        <details>
+          <summary>Context summary</summary>
+          <pre>{event.contextSummary}</pre>
+        </details>
+      </article>
+    );
+  }
+  if (event.type === "brainstorm.agent.started") {
+    return (
+      <article className="brainstorm-card thinking">
+        <span>{event.participant.label}</span>
+        <div className="brainstorm-thinking">
+          <span aria-hidden="true" />
+          <strong>Thinking...</strong>
+        </div>
+      </article>
+    );
+  }
+  if (event.type === "brainstorm.agent.response") {
+    return (
+      <article className={`brainstorm-card response ${event.status}`}>
+        <span>{event.participant.label}</span>
+        {event.status === "failed" ? <pre>{event.error}</pre> : <RichMessage text={event.content ?? ""} />}
+        {event.durationMs !== undefined ? <small>{Math.round(event.durationMs / 1000)}s</small> : null}
+      </article>
+    );
+  }
+  if (event.type === "brainstorm.round.finished") {
+    return (
+      <article className="brainstorm-card summary">
+        <span>Workbench summary</span>
+        <RichMessage text={event.summary} />
+      </article>
+    );
+  }
+  if (event.type === "turn.finished" && event.status === "failed") {
+    return (
+      <article className="brainstorm-card response failed">
+        <span>Round failed</span>
+        <pre>{event.error ?? "Unknown error"}</pre>
+      </article>
+    );
+  }
+  return null;
+}
+
+function BrainstormInspector({
+  events,
+  selectedParticipantIds,
+  task,
+}: {
+  events: AgentEvent[];
+  selectedParticipantIds: BrainstormParticipantId[];
+  task?: Task;
+}): React.JSX.Element {
+  const selected = new Set(selectedParticipantIds);
+  const participants = (task?.brainstorm?.participants ?? []).filter((participant) => selected.has(participant.id));
+  const participantStates = brainstormParticipantStates(events, participants);
+  const latestResponses = [...events]
+    .reverse()
+    .filter((event) => event.type === "brainstorm.agent.response")
+    .slice(0, participants.length);
+  return (
+    <div className="brainstorm-inspector">
+      <div className="session-terminal-header">
+        <div>
+          <h3>Brainstorm Mix</h3>
+          <small>Read-only multi-CLI discussion. Workbench owns the shared context and transcript.</small>
+        </div>
+      </div>
+      <section>
+        <h4>Participants</h4>
+        {participants.length > 0 ? participants.map((participant) => {
+          const state = participantStates.get(participant.id) ?? "idle";
+          return (
+            <div className="brainstorm-inspector-agent" key={participant.id}>
+              <div className="brainstorm-agent-title">
+                <strong>{participant.label}</strong>
+                <span className={`brainstorm-agent-state ${state}`}>{brainstormParticipantStateLabel(state)}</span>
+              </div>
+              <small>{participant.role}</small>
+            </div>
+          );
+        }) : <p className="empty">Select agents in Run brainstorm.</p>}
+      </section>
+      <section>
+        <h4>Transcript</h4>
+        <code>{task?.brainstorm?.transcriptPath ?? "Not created yet."}</code>
+      </section>
+      <section>
+        <h4>Latest round</h4>
+        {latestResponses.length > 0 ? (
+          latestResponses.map((event) => event.type === "brainstorm.agent.response" ? (
+            <div className={`brainstorm-inspector-response ${event.status}`} key={`${event.participant.id}-${event.timestamp}`}>
+              <strong>{event.participant.label}</strong>
+              <small>{event.status === "failed" ? event.error : compactOneLine(event.content ?? "")}</small>
+            </div>
+          ) : null)
+        ) : (
+          <p className="empty">No agent responses yet.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+type BrainstormParticipantState = "idle" | "queued" | "running" | "done" | "failed";
+
+function brainstormParticipantStates(events: AgentEvent[], participants: BrainstormParticipant[]): Map<string, BrainstormParticipantState> {
+  const states = new Map<string, BrainstormParticipantState>();
+  for (const participant of participants) {
+    states.set(participant.id, "idle");
+  }
+  for (const event of events) {
+    if (event.type === "brainstorm.round.started") {
+      for (const participant of event.participants) {
+        states.set(participant.id, "queued");
+      }
+    }
+    if (event.type === "brainstorm.agent.started") {
+      states.set(event.participant.id, "running");
+    }
+    if (event.type === "brainstorm.agent.response") {
+      states.set(event.participant.id, event.status === "failed" ? "failed" : "done");
+    }
+  }
+  return states;
+}
+
+function brainstormParticipantStateLabel(state: BrainstormParticipantState): string {
+  if (state === "queued") {
+    return "queued";
+  }
+  if (state === "running") {
+    return "running";
+  }
+  if (state === "done") {
+    return "done";
+  }
+  if (state === "failed") {
+    return "failed";
+  }
+  return "ready";
 }
 
 function SessionNotesPanel({
@@ -9629,6 +10102,20 @@ function EventRow({
             {event.error ? <pre>{cleanEventText(event.error)}</pre> : null}
           </>
         ) : null}
+        {event.type === "brainstorm.round.started" ? (
+          <>
+            <p>Brainstorm round started with {event.participants.length} participants.</p>
+            {debug ? <pre>{event.contextSummary}</pre> : null}
+          </>
+        ) : null}
+        {event.type === "brainstorm.agent.started" ? <p>{event.participant.label} started.</p> : null}
+        {event.type === "brainstorm.agent.response" ? (
+          <>
+            <p>{event.participant.label}: {event.status}</p>
+            {event.status === "failed" ? <pre>{event.error}</pre> : <RichMessage text={event.content ?? ""} />}
+          </>
+        ) : null}
+        {event.type === "brainstorm.round.finished" ? <RichMessage text={event.summary} /> : null}
         {debug ? <small className="event-time">{event.timestamp}</small> : null}
       </div>
     </article>
@@ -9670,6 +10157,14 @@ function eventLabel(event: AgentEvent): string {
       return "task";
     case "turn.finished":
       return "turn";
+    case "brainstorm.round.started":
+      return "brainstorm";
+    case "brainstorm.agent.started":
+      return "agent start";
+    case "brainstorm.agent.response":
+      return event.participant.label;
+    case "brainstorm.round.finished":
+      return "summary";
   }
 }
 
@@ -9692,6 +10187,9 @@ function eventRowClass(event: AgentEvent): string {
   }
   if (event.type === "diff.updated") {
     return "diff";
+  }
+  if (event.type.startsWith("brainstorm.")) {
+    return event.type === "brainstorm.agent.response" ? "agent" : "system";
   }
   return "system";
 }
@@ -9991,6 +10489,12 @@ function defaultTimelineEvents(items: AgentEvent[]): AgentEvent[] {
         return item.status === "failed" || Boolean(item.error);
       case "task.finished":
         return item.status === "failed" || item.status === "cancelled" || Boolean(item.error);
+      case "brainstorm.round.started":
+      case "brainstorm.agent.response":
+      case "brainstorm.round.finished":
+        return true;
+      case "brainstorm.agent.started":
+        return false;
       case "approval.resolved":
       case "task.started":
       case "shell.output":

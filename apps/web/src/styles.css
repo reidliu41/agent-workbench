@@ -1803,6 +1803,10 @@ small {
   padding: 10px;
 }
 
+.timeline.brainstorm-timeline-shell {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .timeline.terminal-projection-shell .terminal-projection {
   min-height: 0;
 }
@@ -4754,6 +4758,22 @@ small {
   width: min(480px, 100%);
 }
 
+.new-session-modal {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+}
+
+.new-session-modal .modal-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.new-session-modal footer {
+  border-top: 1px solid #2a3031;
+  padding-top: 12px;
+}
+
 .project-browser-modal {
   max-height: calc(100vh - 48px);
   overflow: hidden;
@@ -5120,6 +5140,355 @@ small {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.brainstorm-setup {
+  border: 1px solid #2a3031;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.brainstorm-participant-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.brainstorm-participant-option {
+  align-items: flex-start;
+  background: #101415;
+  border: 1px solid #2a3031;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr;
+  padding: 10px;
+}
+
+.brainstorm-participant-option span {
+  display: grid;
+  gap: 3px;
+}
+
+.brainstorm-panel {
+  display: grid;
+  gap: 12px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.brainstorm-hero,
+.brainstorm-composer,
+.brainstorm-card,
+.brainstorm-inspector section {
+  background: #121718;
+  border: 1px solid #2a3031;
+  border-radius: 8px;
+}
+
+.brainstorm-hero {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.brainstorm-hero h3,
+.brainstorm-hero p,
+.brainstorm-card p {
+  margin: 0;
+}
+
+.brainstorm-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.brainstorm-metrics span {
+  background: #1a2021;
+  border: 1px solid #334042;
+  border-radius: 999px;
+  color: #d7ff7a;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.brainstorm-participants {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.brainstorm-participant-card {
+  background: #101415;
+  border: 1px solid #2a3031;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.brainstorm-composer {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.brainstorm-round-participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.brainstorm-round-participant {
+  align-items: center;
+  background: #151b1c;
+  border: 1px solid #30383a;
+  border-radius: 999px;
+  color: #cfd7d0;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 9px;
+}
+
+.brainstorm-round-participant.selected {
+  background: #203621;
+  border-color: #5b8648;
+  color: #d7ff7a;
+}
+
+.brainstorm-round-participant input {
+  accent-color: #d7ff7a;
+  margin: 0;
+  width: auto;
+}
+
+.brainstorm-round-participant span {
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.brainstorm-composer textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.brainstorm-mention-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -2px;
+}
+
+.brainstorm-composer > div {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.brainstorm-timeline {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.brainstorm-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.brainstorm-card > span {
+  color: #a9b1aa;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.brainstorm-card.response > span {
+  background: #203621;
+  border: 1px solid #5b8648;
+  border-radius: 999px;
+  color: #d7ff7a;
+  justify-self: start;
+  padding: 4px 9px;
+}
+
+.brainstorm-card.response.failed > span {
+  background: #341c19;
+  border-color: #9b4c41;
+  color: #ffd5ce;
+}
+
+.brainstorm-card.user {
+  border-color: #3f5773;
+}
+
+.brainstorm-card.response.completed {
+  border-color: #3a6244;
+}
+
+.brainstorm-card.response.failed {
+  border-color: #8a4a42;
+}
+
+.brainstorm-card.thinking {
+  border-color: #627944;
+}
+
+.brainstorm-thinking {
+  align-items: center;
+  color: #d7ff7a;
+  display: flex;
+  gap: 10px;
+}
+
+.brainstorm-thinking > span {
+  animation: brainstorm-spin 0.9s linear infinite;
+  border: 2px solid #3a4a30;
+  border-radius: 999px;
+  border-top-color: #d7ff7a;
+  display: inline-block;
+  height: 18px;
+  width: 18px;
+}
+
+@keyframes brainstorm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.brainstorm-card.summary {
+  border-color: #627944;
+}
+
+.brainstorm-card pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.brainstorm-inspector {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.brainstorm-inspector section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.brainstorm-inspector h4 {
+  margin: 0;
+}
+
+.brainstorm-inspector code {
+  background: #0d1112;
+  border: 1px solid #2a3031;
+  border-radius: 6px;
+  color: #dce4dd;
+  overflow-wrap: anywhere;
+  padding: 8px;
+}
+
+.brainstorm-inspector-agent,
+.brainstorm-inspector-response {
+  display: grid;
+  gap: 4px;
+}
+
+.brainstorm-agent-title {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.brainstorm-agent-title strong {
+  min-width: 0;
+}
+
+.brainstorm-agent-state {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 900;
+  gap: 5px;
+  line-height: 1;
+  padding: 4px 7px;
+  text-transform: uppercase;
+}
+
+.brainstorm-agent-state::before {
+  border-radius: 999px;
+  content: "";
+  display: block;
+  height: 6px;
+  width: 6px;
+}
+
+.brainstorm-agent-state.idle {
+  background: #182128;
+  border: 1px solid #3f5773;
+  color: #cfe3ff;
+}
+
+.brainstorm-agent-state.idle::before {
+  background: #7fb4ff;
+}
+
+.brainstorm-agent-state.queued,
+.brainstorm-agent-state.running {
+  background: #2b2617;
+  border: 1px solid #806929;
+  color: #ffe6a3;
+}
+
+.brainstorm-agent-state.queued::before,
+.brainstorm-agent-state.running::before {
+  background: #f3c752;
+}
+
+.brainstorm-agent-state.done {
+  background: #1d3325;
+  border: 1px solid #4e8a64;
+  color: #bdf4ca;
+}
+
+.brainstorm-agent-state.done::before {
+  background: #7fe196;
+}
+
+.brainstorm-agent-state.failed {
+  background: #331b18;
+  border: 1px solid #9b4c41;
+  color: #ffd5ce;
+}
+
+.brainstorm-agent-state.failed::before {
+  background: #ff8f83;
+}
+
+.brainstorm-inspector-response.failed small {
+  color: #ffb6ad;
 }
 
 @media (max-width: 980px) {

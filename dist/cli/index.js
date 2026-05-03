@@ -44533,7 +44533,7 @@ var require_websocket2 = __commonJS({
 });
 
 // apps/cli/src/index.ts
-import { spawn as spawn11 } from "node:child_process";
+import { spawn as spawn12 } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { stat as stat5 } from "node:fs/promises";
 import { dirname as dirname5, join as join9 } from "node:path";
@@ -45084,6 +45084,7 @@ function parseStatusPorcelain(status) {
 
 // packages/core/src/orchestrator/workbenchOrchestrator.ts
 import { randomUUID } from "node:crypto";
+import { spawn as spawn2 } from "node:child_process";
 import { access as access2, appendFile, mkdir as mkdir3, readFile as readFile5, readdir as readdir5, stat as stat3, writeFile as writeFile3 } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join as join5, relative, resolve as resolve4, sep } from "node:path";
 import { homedir as homedir5 } from "node:os";
@@ -45957,6 +45958,8 @@ function isNodeError3(error48, code) {
 }
 
 // packages/core/src/orchestrator/workbenchOrchestrator.ts
+var BRAINSTORM_BACKEND_ID = "brainstorm-mix";
+var BRAINSTORM_TIMEOUT_MS = Number.parseInt(process.env.AGENT_WORKBENCH_BRAINSTORM_TIMEOUT_MS ?? "180000", 10);
 var WorkbenchOrchestrator = class {
   constructor(options) {
     this.options = options;
@@ -46259,6 +46262,9 @@ var WorkbenchOrchestrator = class {
       throw new Error("Project not found.");
     }
     const backendId = input.backendId ?? "gemini-acp";
+    if (backendId === BRAINSTORM_BACKEND_ID) {
+      return this.createBrainstormSession(project, input);
+    }
     const backend = this.backends.get(backendId);
     if (!backend) {
       throw new Error(`Backend not found: ${backendId}`);
@@ -46316,6 +46322,58 @@ var WorkbenchOrchestrator = class {
     await this.emit({ type: "task.started", taskId: running.id, timestamp: (/* @__PURE__ */ new Date()).toISOString() });
     this.attachSession(backend, running, project, worktreePath, input.modeId);
     return running;
+  }
+  async createBrainstormSession(project, input) {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const id = randomUUID();
+    const transcriptDir = join5(homedir5(), ".agent-workbench", "brainstorm", id);
+    const transcriptPath = join5(transcriptDir, "transcript.md");
+    await mkdir3(transcriptDir, { recursive: true });
+    await writeFile3(
+      transcriptPath,
+      [
+        `# ${input.title?.trim() || "Brainstorm Mix"}`,
+        "",
+        `- Session ID: \`${id}\``,
+        `- Project: ${project.name}`,
+        `- Project path: \`${project.path}\``,
+        `- Created: ${now}`,
+        ""
+      ].join("\n"),
+      "utf8"
+    );
+    let task = {
+      id,
+      projectId: project.id,
+      backendId: BRAINSTORM_BACKEND_ID,
+      title: input.title?.trim() || "Brainstorm Mix",
+      prompt: "",
+      status: "created",
+      agentContextStatus: "live",
+      brainstorm: {
+        contextPolicy: "project_overview",
+        participants: createBrainstormParticipants(input.brainstormParticipants),
+        roundCount: 0,
+        topic: input.brainstormTopic?.trim() || void 0,
+        transcriptPath
+      },
+      createdAt: now,
+      updatedAt: now
+    };
+    task = await this.options.store.upsertTask(task);
+    this.options.eventBus.publishTask(task);
+    await this.emitAction(
+      task.id,
+      "context",
+      "completed",
+      "Brainstorm Mix session ready.",
+      "This session reads project context and asks selected CLI agents for opinions. It does not write files, run delivery, or apply changes.",
+      {
+        participantIds: task.brainstorm?.participants.filter((participant) => participant.enabled).map((participant) => participant.id) ?? [],
+        transcriptPath
+      }
+    );
+    return task;
   }
   async listProjectGeminiSessions(projectId) {
     const project = (await this.options.store.listProjects()).find((item) => item.id === projectId);
@@ -46428,7 +46486,7 @@ var WorkbenchOrchestrator = class {
       title: nativeSession.displayName || nativeSession.firstUserMessage || `Imported ${nativeSession.backendName} session`
     });
   }
-  async sendSessionMessage(taskId, prompt) {
+  async sendSessionMessage(taskId, prompt, options = {}) {
     const trimmed = prompt.trim();
     if (!trimmed) {
       throw new Error("Missing required field: prompt");
@@ -46436,6 +46494,9 @@ var WorkbenchOrchestrator = class {
     const task = await this.options.store.getTask(taskId);
     if (!task) {
       throw new Error("Task not found.");
+    }
+    if (task.backendId === BRAINSTORM_BACKEND_ID) {
+      return this.sendBrainstormMessage(task, trimmed, options.brainstormParticipants);
     }
     if (!task.worktreePath) {
       throw new Error("Task has no worktree.");
@@ -46477,6 +46538,216 @@ var WorkbenchOrchestrator = class {
       return updated;
     }
     return this.startPromptTurn(sessionBackend, task, project, task.worktreePath, trimmed, true);
+  }
+  async sendBrainstormMessage(task, prompt, brainstormParticipants) {
+    const projects = await this.options.store.listProjects();
+    const project = projects.find((item) => item.id === task.projectId);
+    if (!project) {
+      throw new Error("Project not found.");
+    }
+    if (this.activeTurns.has(task.id)) {
+      const queuedAt = (/* @__PURE__ */ new Date()).toISOString();
+      const queue = this.queuedTurns.get(task.id) ?? [];
+      queue.push({ brainstormParticipants, prompt, queuedAt });
+      this.queuedTurns.set(task.id, queue);
+      const updated = await this.updateTask({
+        ...task,
+        completedAt: void 0,
+        prompt,
+        status: "running",
+        updatedAt: queuedAt
+      });
+      await this.emit({ type: "user.message", taskId: task.id, text: prompt, timestamp: queuedAt });
+      await this.emitAction(
+        task.id,
+        "enqueue",
+        "completed",
+        "Queued brainstorm prompt.",
+        `${queue.length} pending prompt${queue.length === 1 ? "" : "s"} will run after the current round.`,
+        {
+          pending: queue.length,
+          queuedAt
+        }
+      );
+      return updated;
+    }
+    return this.startBrainstormRound(task, project, prompt, true, brainstormParticipants);
+  }
+  async startBrainstormRound(task, project, prompt, emitUserMessage, brainstormParticipants) {
+    const turnId = randomUUID();
+    this.activeTurns.set(task.id, turnId);
+    const running = await this.updateTask({
+      ...task,
+      completedAt: void 0,
+      prompt,
+      status: "running",
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    if (emitUserMessage) {
+      await this.emit({ type: "user.message", taskId: task.id, text: prompt, timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+    }
+    void this.processBrainstormRound(running, project, prompt, turnId, brainstormParticipants).catch(() => void 0);
+    return running;
+  }
+  async processBrainstormRound(task, project, prompt, turnId, participantIds) {
+    try {
+      const roundId = randomUUID();
+      const participants = selectBrainstormParticipants(task.brainstorm?.participants, participantIds);
+      if (participants.length === 0) {
+        throw new Error("Brainstorm Mix needs at least one participant.");
+      }
+      const context = await this.buildBrainstormProjectContext(project);
+      const contextSummary = context.split("\n").slice(0, 12).join("\n");
+      const startedAt = (/* @__PURE__ */ new Date()).toISOString();
+      await this.emit({
+        type: "brainstorm.round.started",
+        taskId: task.id,
+        roundId,
+        prompt,
+        participants,
+        contextSummary,
+        timestamp: startedAt
+      });
+      const responses = [];
+      for (const participant of participants.sort((left, right) => left.order - right.order)) {
+        if (!this.isActiveTurn(task.id, turnId)) {
+          return;
+        }
+        await this.emit({
+          type: "brainstorm.agent.started",
+          taskId: task.id,
+          roundId,
+          participant,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        const participantStartedAt = Date.now();
+        try {
+          const content = await runBrainstormCli({
+            context,
+            cwd: project.path,
+            participant,
+            prompt,
+            transcript: await readBrainstormTranscript(task.brainstorm?.transcriptPath)
+          });
+          const response = {
+            content,
+            participant,
+            status: "completed"
+          };
+          responses.push(response);
+          await this.emit({
+            type: "brainstorm.agent.response",
+            taskId: task.id,
+            roundId,
+            participant,
+            status: "completed",
+            content,
+            durationMs: Date.now() - participantStartedAt,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        } catch (error48) {
+          const response = {
+            error: formatUnknownError(error48),
+            participant,
+            status: "failed"
+          };
+          responses.push(response);
+          await this.emit({
+            type: "brainstorm.agent.response",
+            taskId: task.id,
+            roundId,
+            participant,
+            status: "failed",
+            error: response.error,
+            durationMs: Date.now() - participantStartedAt,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+      }
+      if (!this.isActiveTurn(task.id, turnId)) {
+        return;
+      }
+      const summary = summarizeBrainstormResponses(responses);
+      const updatedBrainstorm = {
+        contextPolicy: "project_overview",
+        participants: markBrainstormParticipantsSelected(
+          task.brainstorm?.participants,
+          participants.map((participant) => participant.id)
+        ),
+        roundCount: (task.brainstorm?.roundCount ?? 0) + 1,
+        summary,
+        topic: task.brainstorm?.topic,
+        transcriptPath: task.brainstorm?.transcriptPath
+      };
+      await appendBrainstormTranscript(task, project, prompt, contextSummary, responses, summary, startedAt);
+      await this.updateTask({
+        ...task,
+        brainstorm: updatedBrainstorm,
+        completedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        status: "review_ready",
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      await this.emit({
+        type: "brainstorm.round.finished",
+        taskId: task.id,
+        roundId,
+        summary,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      await this.emit({
+        type: "turn.finished",
+        taskId: task.id,
+        status: "completed",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } catch (error48) {
+      if (!this.isActiveTurn(task.id, turnId)) {
+        return;
+      }
+      const message = formatUnknownError(error48);
+      await this.updateTask({
+        ...task,
+        completedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        status: "failed",
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      await this.emit({
+        type: "turn.finished",
+        taskId: task.id,
+        status: "failed",
+        error: message,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } finally {
+      const shouldStartNext = this.isActiveTurn(task.id, turnId);
+      this.clearActiveTurn(task.id, turnId);
+      if (shouldStartNext) {
+        void this.startNextQueuedTurn(task.id).catch(() => void 0);
+      }
+    }
+  }
+  async buildBrainstormProjectContext(project) {
+    const [branch, statusText, rootEntries, readme] = await Promise.all([
+      this.options.git.currentBranch(project.path).catch(() => project.defaultBranch ?? "unknown"),
+      this.options.git.statusPorcelain(project.path).catch(() => "unavailable"),
+      listRootEntriesForContext(project.path).catch(() => "unavailable"),
+      readProjectContextFile(project.path, ["README.md", "readme.md", "package.json", "Cargo.toml", "pyproject.toml"]).catch(() => void 0)
+    ]);
+    return [
+      `Project: ${project.name}`,
+      `Path: ${project.path}`,
+      `Current branch: ${branch}`,
+      `Default branch: ${project.defaultBranch ?? "unknown"}`,
+      "",
+      "Git status:",
+      statusText.trim() || "clean",
+      "",
+      "Root entries:",
+      rootEntries,
+      "",
+      readme ? "Project context file:" : void 0,
+      readme
+    ].filter((line) => line !== void 0).join("\n");
   }
   async startPromptTurn(backend, task, project, worktreePath, prompt, emitUserMessage) {
     const turnId = randomUUID();
@@ -46598,11 +46869,32 @@ var WorkbenchOrchestrator = class {
       this.queuedTurns.delete(taskId);
     }
     const task = await this.options.store.getTask(taskId);
-    if (!task || !task.worktreePath || task.status === "cancelled" || task.status === "applied") {
+    if (!task || task.status === "cancelled" || task.status === "applied") {
       return;
     }
     const projects = await this.options.store.listProjects();
     const project = projects.find((item) => item.id === task.projectId);
+    if (task.backendId === BRAINSTORM_BACKEND_ID) {
+      if (!project) {
+        await this.emit({
+          type: "turn.finished",
+          taskId,
+          status: "failed",
+          error: "Queued brainstorm prompt could not start because the project is no longer available.",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        return;
+      }
+      await this.emitAction(taskId, "enqueue", "started", "Running queued brainstorm prompt.", next.prompt.slice(0, 180), {
+        queuedAt: next.queuedAt,
+        remaining: queue?.length ?? 0
+      });
+      await this.startBrainstormRound(task, project, next.prompt, false, next.brainstormParticipants);
+      return;
+    }
+    if (!task.worktreePath) {
+      return;
+    }
     const backend = this.backends.get(task.backendId);
     if (!project || !backend?.sendMessage) {
       await this.emit({
@@ -46634,7 +46926,7 @@ var WorkbenchOrchestrator = class {
     return this.options.store.latestDiff(taskId);
   }
   async backendStatuses() {
-    return Promise.all([...this.backends.values()].map((backend) => backend.detect()));
+    return [brainstormBackendStatus(), ...await Promise.all([...this.backends.values()].map((backend) => backend.detect()))];
   }
   listNativeSlashCommands() {
     return nativeSlashCommandInfo();
@@ -48812,6 +49104,320 @@ ${worktreeStatus.trim()}` : "Worktree is clean."
     return historical;
   }
 };
+function brainstormBackendStatus() {
+  return {
+    id: BRAINSTORM_BACKEND_ID,
+    name: "Brainstorm Mix",
+    kind: "brainstorm",
+    available: true,
+    command: "workbench",
+    details: "Read-only multi-CLI discussion mode. Workbench controls the shared context and transcript.",
+    capabilities: ["structured_stream", "resume", "worktree"],
+    profile: {
+      summary: "Read-only brainstorm mode that asks multiple local CLI agents to analyze the same topic.",
+      commands: [
+        {
+          name: "round",
+          source: "workbench",
+          support: "supported",
+          description: "Ask selected CLI agents to respond to the same topic with shared context."
+        }
+      ],
+      features: [
+        {
+          id: "chat",
+          label: "Multi-agent discussion",
+          support: "supported",
+          source: "workbench",
+          description: "Runs selected CLI agents as read-only consultants and records their responses in one transcript."
+        },
+        {
+          id: "command_execution",
+          label: "Read-only CLI calls",
+          support: "partial",
+          source: "workbench",
+          description: "Uses each CLI's non-interactive or plan mode where available.",
+          limitation: "Workbench asks participants not to modify files and passes read-only flags when the CLI supports them."
+        },
+        {
+          id: "diff_review",
+          label: "Delivery disabled",
+          support: "unsupported",
+          source: "workbench",
+          description: "Brainstorm sessions are for analysis and planning, not code changes."
+        }
+      ],
+      skills: [],
+      recommendedUse: [
+        "Compare architecture or product decisions across multiple agents.",
+        "Ask for second opinions before starting implementation.",
+        "Discuss a repository without creating files or branches."
+      ],
+      limitations: [
+        "No code writes, git delivery, apply, or PR workflow.",
+        "Each participant still depends on its local CLI authentication and availability.",
+        "First version runs participants sequentially and summarizes responses without automatic consensus voting."
+      ]
+    }
+  };
+}
+function createBrainstormParticipants(ids) {
+  const selected = ids && ids.length > 0 ? new Set(ids) : /* @__PURE__ */ new Set();
+  return brainstormParticipantDefinitions().map((participant) => ({
+    ...participant,
+    enabled: selected.has(participant.id)
+  }));
+}
+function selectBrainstormParticipants(participants, ids) {
+  const available = participants && participants.length > 0 ? participants : brainstormParticipantDefinitions();
+  const selectedIds = ids && ids.length > 0 ? new Set(ids) : new Set(available.filter((participant) => participant.enabled).map((participant) => participant.id));
+  return available.map((participant) => ({
+    ...participant,
+    enabled: selectedIds.has(participant.id)
+  })).filter((participant) => participant.enabled).sort((left, right) => left.order - right.order);
+}
+function markBrainstormParticipantsSelected(participants, ids) {
+  const selected = new Set(ids);
+  const available = participants && participants.length > 0 ? participants : brainstormParticipantDefinitions();
+  return available.map((participant) => ({
+    ...participant,
+    enabled: selected.has(participant.id)
+  }));
+}
+function brainstormParticipantDefinitions() {
+  return [
+    {
+      enabled: true,
+      id: "claude",
+      label: "Claude Code",
+      order: 10,
+      role: "Architecture, product reasoning, maintainability tradeoffs, and human-readable planning."
+    },
+    {
+      enabled: true,
+      id: "codex",
+      label: "OpenAI Codex",
+      order: 20,
+      role: "Implementation risk, correctness, testing strategy, and concrete engineering next steps."
+    },
+    {
+      enabled: true,
+      id: "gemini",
+      label: "Gemini CLI",
+      order: 30,
+      role: "Broad project analysis, alternative approaches, and repository-level context."
+    },
+    {
+      enabled: false,
+      id: "qwen",
+      label: "Qwen Code",
+      order: 40,
+      role: "Second-opinion engineering analysis, edge cases, and concise implementation review."
+    },
+    {
+      enabled: false,
+      id: "copilot",
+      label: "GitHub Copilot CLI",
+      order: 50,
+      role: "GitHub workflow, practical developer ergonomics, and delivery-oriented review."
+    }
+  ];
+}
+async function runBrainstormCli(input) {
+  const prompt = buildBrainstormParticipantPrompt(input);
+  const command = brainstormCommand(input.participant.id, prompt, input.cwd);
+  const result = await runCommandCapture(command.command, command.args, input.cwd, BRAINSTORM_TIMEOUT_MS);
+  const output = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n\n").trim();
+  if (result.exitCode !== 0 && !output) {
+    throw new Error(`${input.participant.label} exited with code ${result.exitCode}.`);
+  }
+  if (result.exitCode !== 0) {
+    throw new Error(`${input.participant.label} exited with code ${result.exitCode}.
+
+${output.slice(0, 4e3)}`);
+  }
+  return output || `${input.participant.label} returned no output.`;
+}
+function brainstormCommand(participantId, prompt, cwd) {
+  switch (participantId) {
+    case "gemini":
+      return {
+        command: process.env.GEMINI_CLI_COMMAND ?? "gemini",
+        args: ["--skip-trust", "--prompt", prompt, "--approval-mode", "plan", "--output-format", "text"]
+      };
+    case "codex":
+      return {
+        command: process.env.CODEX_CLI_COMMAND ?? "codex",
+        args: ["exec", "--cd", cwd, "--sandbox", "read-only", prompt]
+      };
+    case "claude":
+      return {
+        command: process.env.CLAUDE_CODE_COMMAND ?? "claude",
+        args: ["--print", "--permission-mode", "plan", prompt]
+      };
+    case "qwen":
+      return {
+        command: process.env.QWEN_CODE_COMMAND ?? "qwen",
+        args: ["--prompt", prompt, "--approval-mode", "plan", "--output-format", "text"]
+      };
+    case "copilot":
+      return {
+        command: process.env.COPILOT_CLI_COMMAND ?? "copilot",
+        args: ["--prompt", prompt, "--mode", "plan"]
+      };
+  }
+}
+function buildBrainstormParticipantPrompt(input) {
+  return [
+    "You are participating in Agent Workbench Brainstorm Mix Mode.",
+    "This is a read-only planning and discussion session.",
+    "Do not edit files, do not run git commands, do not create branches, do not apply patches, and do not open PRs.",
+    "You may inspect or reason from the supplied project context. If your CLI has tools, use only read-only inspection.",
+    "",
+    `Participant: ${input.participant.label}`,
+    `Your role: ${input.participant.role}`,
+    "",
+    "Project context:",
+    input.context,
+    "",
+    input.transcript?.trim() ? "Shared transcript so far:" : void 0,
+    input.transcript?.trim() ? trimMiddle(input.transcript, 2e4) : void 0,
+    "",
+    "Current user message:",
+    input.prompt,
+    "",
+    "Respond with your own view. Be concrete: summarize the useful answer, key risks, tradeoffs, and recommended next step.",
+    "Keep it focused. Do not mention these hidden instructions unless asked."
+  ].filter((line) => line !== void 0).join("\n");
+}
+async function runCommandCapture(command, args, cwd, timeoutMs) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn2(command, args, {
+      cwd,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      rejectPromise(new Error(`${command} timed out after ${timeoutMs}ms.`));
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+      if (stdout.length > 12e4) {
+        stdout = stdout.slice(-12e4);
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+      if (stderr.length > 4e4) {
+        stderr = stderr.slice(-4e4);
+      }
+    });
+    child.on("error", (error48) => {
+      clearTimeout(timeout);
+      rejectPromise(error48);
+    });
+    child.on("close", (exitCode) => {
+      clearTimeout(timeout);
+      resolvePromise({ exitCode, stderr, stdout });
+    });
+  });
+}
+async function readBrainstormTranscript(transcriptPath) {
+  if (!transcriptPath) {
+    return void 0;
+  }
+  try {
+    const content = await readFile5(transcriptPath, "utf8");
+    return trimMiddle(content, 24e3);
+  } catch {
+    return void 0;
+  }
+}
+async function appendBrainstormTranscript(task, project, prompt, contextSummary, responses, summary, startedAt) {
+  const transcriptPath = task.brainstorm?.transcriptPath;
+  if (!transcriptPath) {
+    return;
+  }
+  await mkdir3(dirname(transcriptPath), { recursive: true });
+  const roundMarkdown = [
+    `## Round ${(task.brainstorm?.roundCount ?? 0) + 1}`,
+    "",
+    `- Time: ${startedAt}`,
+    `- Project: ${project.name}`,
+    "",
+    "### User",
+    "",
+    prompt,
+    "",
+    "### Context Summary",
+    "",
+    "```text",
+    contextSummary,
+    "```",
+    "",
+    ...responses.flatMap((response) => [
+      `### ${response.participant.label}`,
+      "",
+      response.status === "completed" ? response.content?.trim() || "_No output._" : `Failed: ${response.error}`,
+      ""
+    ]),
+    "### Workbench Summary",
+    "",
+    summary,
+    ""
+  ].join("\n");
+  await appendFile(transcriptPath, `${roundMarkdown}
+`, "utf8");
+  await appendFile(
+    join5(dirname(transcriptPath), "events.jsonl"),
+    `${JSON.stringify({ contextSummary, prompt, responses, startedAt, summary, taskId: task.id, type: "round" })}
+`,
+    "utf8"
+  );
+}
+function summarizeBrainstormResponses(responses) {
+  const completed = responses.filter((response) => response.status === "completed");
+  const failed = responses.filter((response) => response.status === "failed");
+  const lines = [
+    `${completed.length}/${responses.length} participant${responses.length === 1 ? "" : "s"} responded.`,
+    ...completed.map((response) => `- ${response.participant.label}: ${oneLine(response.content ?? "")}`),
+    ...failed.map((response) => `- ${response.participant.label}: failed - ${oneLine(response.error ?? "unknown error")}`)
+  ];
+  return lines.join("\n");
+}
+async function listRootEntriesForContext(projectPath) {
+  const entries = await readdir5(projectPath, { withFileTypes: true });
+  return entries.filter((entry) => ![".git", "node_modules", "dist", "build", ".next", "target", ".agent-workbench"].includes(entry.name)).slice(0, 80).map((entry) => `${entry.isDirectory() ? "dir " : "file"} ${entry.name}`).join("\n");
+}
+async function readProjectContextFile(projectPath, candidates) {
+  for (const candidate of candidates) {
+    const filePath = join5(projectPath, candidate);
+    try {
+      const file2 = await stat3(filePath);
+      if (!file2.isFile() || file2.size > 5e5) {
+        continue;
+      }
+      const content = await readFile5(filePath, "utf8");
+      return [`--- ${candidate} ---`, trimMiddle(content, 12e3)].join("\n");
+    } catch {
+    }
+  }
+  return void 0;
+}
+function trimMiddle(value, maxLength) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  const side = Math.floor((maxLength - 80) / 2);
+  return `${value.slice(0, side)}
+
+... omitted ${value.length - side * 2} chars ...
+
+${value.slice(-side)}`;
+}
 var NATIVE_SLASH_COMMANDS = [
   {
     aliases: ["memory", "memory show", "memory view"],
@@ -49393,6 +49999,16 @@ function reportTimelineEvents(events) {
         return [`${event.timestamp} turn: ${event.status}${event.error ? ` - ${oneLine(event.error)}` : ""}`];
       case "task.finished":
         return [`${event.timestamp} task: ${event.status}${event.error ? ` - ${oneLine(event.error)}` : ""}`];
+      case "brainstorm.round.started":
+        return [`${event.timestamp} brainstorm round: ${oneLine(event.prompt)}`];
+      case "brainstorm.agent.started":
+        return [`${event.timestamp} brainstorm ${event.participant.label}: started`];
+      case "brainstorm.agent.response":
+        return [
+          `${event.timestamp} brainstorm ${event.participant.label}: ${event.status}${event.error ? ` - ${oneLine(event.error)}` : event.content ? ` - ${oneLine(event.content)}` : ""}`
+        ];
+      case "brainstorm.round.finished":
+        return [`${event.timestamp} brainstorm summary: ${oneLine(event.summary)}`];
       case "task.started":
       case "shell.output":
       case "tool.started":
@@ -50554,7 +51170,7 @@ function createWorkbenchStore(path) {
 // apps/server/src/index.ts
 var import_fastify = __toESM(require_fastify(), 1);
 var import_websocket = __toESM(require_websocket2(), 1);
-import { spawn as spawn9 } from "node:child_process";
+import { spawn as spawn10 } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { access as access3, readFile as readFile7, readdir as readdir6 } from "node:fs/promises";
 import { homedir as homedir8, networkInterfaces } from "node:os";
@@ -50563,10 +51179,10 @@ import { fileURLToPath } from "node:url";
 import * as pty from "node-pty";
 
 // packages/adapters/src/claude/claudeTerminalBackend.ts
-import { spawn as spawn2 } from "node:child_process";
+import { spawn as spawn3 } from "node:child_process";
 async function commandResult(command, args) {
   return new Promise((resolve6) => {
-    const child = spawn2(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn3(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -50748,10 +51364,10 @@ function claudeTerminalProfile() {
 }
 
 // packages/adapters/src/copilot/copilotTerminalBackend.ts
-import { spawn as spawn3 } from "node:child_process";
+import { spawn as spawn4 } from "node:child_process";
 async function commandResult2(command, args) {
   return new Promise((resolve6) => {
-    const child = spawn3(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn4(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -50953,10 +51569,10 @@ function copilotTerminalProfile() {
 }
 
 // packages/adapters/src/codex/codexTerminalBackend.ts
-import { spawn as spawn4 } from "node:child_process";
+import { spawn as spawn5 } from "node:child_process";
 async function commandResult3(command, args) {
   return new Promise((resolve6) => {
-    const child = spawn4(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn5(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -51138,7 +51754,7 @@ function codexTerminalProfile() {
 }
 
 // packages/adapters/src/gemini/geminiAcpBackend.ts
-import { spawn as spawn5 } from "node:child_process";
+import { spawn as spawn6 } from "node:child_process";
 import { randomUUID as randomUUID2 } from "node:crypto";
 import { mkdir as mkdir5, writeFile as writeFile5 } from "node:fs/promises";
 import { homedir as homedir7, tmpdir } from "node:os";
@@ -66453,7 +67069,7 @@ var RequestError = class _RequestError extends Error {
 // packages/adapters/src/gemini/geminiAcpBackend.ts
 async function commandResult4(command, args) {
   return new Promise((resolve6) => {
-    const child = spawn5(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn6(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -66609,7 +67225,7 @@ var GeminiAcpBackend = class {
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
     const env = await geminiAcpEnvironment();
-    const child = spawn5(this.command, ["--acp"], {
+    const child = spawn6(this.command, ["--acp"], {
       cwd: input.worktreePath,
       env,
       stdio: ["pipe", "pipe", "pipe"]
@@ -67268,10 +67884,10 @@ function approvalRisk(kind) {
 }
 
 // packages/adapters/src/gemini/geminiBackend.ts
-import { spawn as spawn6 } from "node:child_process";
+import { spawn as spawn7 } from "node:child_process";
 async function commandResult5(command, args) {
   return new Promise((resolve6) => {
-    const child = spawn6(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn7(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -67358,7 +67974,7 @@ var GeminiBackend = class {
       },
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
-    const child = spawn6(this.command, args, {
+    const child = spawn7(this.command, args, {
       cwd: input.worktreePath,
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"]
@@ -67669,7 +68285,7 @@ function errorMessage(error48) {
 }
 
 // packages/adapters/src/pty/genericPtyBackend.ts
-import { spawn as spawn7 } from "node:child_process";
+import { spawn as spawn8 } from "node:child_process";
 var GenericPtyBackend = class {
   id = "generic-pty";
   name = "Generic CLI Fallback";
@@ -67687,7 +68303,7 @@ var GenericPtyBackend = class {
   }
   async startTask(input) {
     const command = process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash";
-    const child = spawn7(command, [], {
+    const child = spawn8(command, [], {
       cwd: input.worktreePath,
       env: process.env,
       stdio: ["pipe", "pipe", "pipe"]
@@ -67855,10 +68471,10 @@ function genericPtyProfile() {
 }
 
 // packages/adapters/src/qwen/qwenTerminalBackend.ts
-import { spawn as spawn8 } from "node:child_process";
+import { spawn as spawn9 } from "node:child_process";
 async function commandResult6(command, args) {
   return new Promise((resolve6) => {
-    const child = spawn8(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn9(command, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -68122,6 +68738,12 @@ async function createWorkbenchServer(options = {}) {
         label: "GitHub Copilot CLI terminal"
       },
       {
+        command: "workbench",
+        envVar: "AGENT_WORKBENCH_BRAINSTORM_TIMEOUT_MS",
+        id: "brainstorm-mix",
+        label: "Brainstorm Mix"
+      },
+      {
         command: process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash",
         envVar: "AGENT_WORKBENCH_FALLBACK_COMMAND",
         id: "generic-pty",
@@ -68286,6 +68908,8 @@ async function createWorkbenchServer(options = {}) {
       title: body.title,
       backendId: body.backendId,
       baseBranch: body.baseBranch,
+      brainstormParticipants: body.brainstormParticipants,
+      brainstormTopic: body.brainstormTopic,
       workingBranch: body.workingBranch,
       modeId: body.modeId,
       agentSessionId: body.agentSessionId
@@ -68311,7 +68935,9 @@ async function createWorkbenchServer(options = {}) {
     if (!body.prompt || typeof body.prompt !== "string") {
       throw new Error("Missing required field: prompt");
     }
-    return orchestrator.sendSessionMessage(params.id, body.prompt);
+    return orchestrator.sendSessionMessage(params.id, body.prompt, {
+      brainstormParticipants: body.brainstormParticipants
+    });
   });
   app.post("/api/sessions/:id/mode", async (request) => {
     const params = request.params;
@@ -69156,7 +69782,7 @@ function shellQuote(value) {
 }
 async function checkCommand(name, args) {
   return new Promise((resolve6) => {
-    const child = spawn9(name, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn10(name, args, { stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -69502,7 +70128,7 @@ function packageVersion() {
 }
 async function checkCommand2(name, args) {
   return new Promise((resolve6) => {
-    const child = spawn11(name, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn12(name, args, { stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");

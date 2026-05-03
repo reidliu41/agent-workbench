@@ -16,6 +16,7 @@ Included:
 - native Claude Code terminal attach,
 - native Qwen Code terminal attach,
 - native GitHub Copilot CLI terminal attach,
+- Brainstorm Mix with per-round participant selection and `@agent` targeting,
 - Changes review/edit workspace,
 - snapshots,
 - one session -> one branch -> one isolated worktree,

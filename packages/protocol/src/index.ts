@@ -19,7 +19,7 @@ export type AgentContextStatus =
   | "transcript_fallback"
   | "unknown";
 
-export type BackendKind = "gemini" | "codex" | "claude" | "qwen" | "copilot" | "generic-pty" | "external";
+export type BackendKind = "gemini" | "codex" | "claude" | "qwen" | "copilot" | "brainstorm" | "generic-pty" | "external";
 
 export type AgentCapability =
   | "terminal"
@@ -113,6 +113,25 @@ export interface ProjectBranch {
   updatedAt?: string;
 }
 
+export type BrainstormParticipantId = "gemini" | "codex" | "claude" | "qwen" | "copilot";
+
+export interface BrainstormParticipant {
+  enabled: boolean;
+  id: BrainstormParticipantId;
+  label: string;
+  order: number;
+  role: string;
+}
+
+export interface BrainstormSessionConfig {
+  contextPolicy: "project_overview";
+  participants: BrainstormParticipant[];
+  roundCount: number;
+  summary?: string;
+  topic?: string;
+  transcriptPath?: string;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -126,6 +145,7 @@ export interface Task {
   agentSessionResumeMode?: "new" | "load" | "resume";
   agentContextStatus?: AgentContextStatus;
   baseBranch?: string;
+  brainstorm?: BrainstormSessionConfig;
   modeId?: string;
   notes?: string;
   worktreePath?: string;
@@ -417,6 +437,40 @@ export type AgentEvent =
       error?: string;
     }
   | {
+      type: "brainstorm.round.started";
+      taskId: string;
+      roundId: string;
+      prompt: string;
+      participants: BrainstormParticipant[];
+      contextSummary: string;
+      timestamp: string;
+    }
+  | {
+      type: "brainstorm.agent.started";
+      taskId: string;
+      roundId: string;
+      participant: BrainstormParticipant;
+      timestamp: string;
+    }
+  | {
+      type: "brainstorm.agent.response";
+      taskId: string;
+      roundId: string;
+      participant: BrainstormParticipant;
+      status: "completed" | "failed";
+      content?: string;
+      durationMs?: number;
+      error?: string;
+      timestamp: string;
+    }
+  | {
+      type: "brainstorm.round.finished";
+      taskId: string;
+      roundId: string;
+      summary: string;
+      timestamp: string;
+    }
+  | {
       type: "turn.finished";
       taskId: string;
       status: "completed" | "failed" | "cancelled";
@@ -453,6 +507,8 @@ export interface CreateSessionRequest {
   title?: string;
   backendId?: string;
   baseBranch?: string;
+  brainstormParticipants?: BrainstormParticipantId[];
+  brainstormTopic?: string;
   workingBranch?: string;
   modeId?: string;
   agentSessionId?: string;
@@ -464,6 +520,7 @@ export interface ProjectBranchListResponse {
 }
 
 export interface SendSessionMessageRequest {
+  brainstormParticipants?: BrainstormParticipantId[];
   prompt: string;
 }
 

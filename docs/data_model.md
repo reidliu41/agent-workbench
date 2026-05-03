@@ -44,7 +44,10 @@ Fields include:
 - worktreePath,
 - worktreeBranch,
 - branches,
+- brainstorm config for Brainstorm Mix sessions,
 - timestamps.
+
+Implementation sessions have a worktree branch. Brainstorm Mix sessions normally do not; they keep participant config and transcript location instead.
 
 ### Event
 
@@ -55,8 +58,21 @@ Append-only record of session activity:
 - approvals,
 - terminal state,
 - diff updates,
+- brainstorm round/participant responses,
 - apply patch/snapshot/delivery actions,
 - errors.
+
+### Brainstorm Transcript
+
+Brainstorm Mix stores a markdown transcript and JSONL round log outside the project repository:
+
+```text
+~/.agent-workbench/brainstorm/<session-id>/
+```
+
+This keeps planning discussion separate from git diffs and implementation worktrees.
+
+The session stores available participants and the last selected participant set. Each brainstorm message can override participants for that round, which supports per-round selection and `@agent` targeting without changing the session definition.
 
 ### Diff Snapshot
 

@@ -162,6 +162,12 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
         label: "GitHub Copilot CLI terminal",
       },
       {
+        command: "workbench",
+        envVar: "AGENT_WORKBENCH_BRAINSTORM_TIMEOUT_MS",
+        id: "brainstorm-mix",
+        label: "Brainstorm Mix",
+      },
+      {
         command: process.env.AGENT_WORKBENCH_FALLBACK_COMMAND ?? "bash",
         envVar: "AGENT_WORKBENCH_FALLBACK_COMMAND",
         id: "generic-pty",
@@ -344,6 +350,8 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
       title: body.title,
       backendId: body.backendId,
       baseBranch: body.baseBranch,
+      brainstormParticipants: body.brainstormParticipants,
+      brainstormTopic: body.brainstormTopic,
       workingBranch: body.workingBranch,
       modeId: body.modeId,
       agentSessionId: body.agentSessionId,
@@ -371,7 +379,9 @@ export async function createWorkbenchServer(options: ServerOptions = {}): Promis
     if (!body.prompt || typeof body.prompt !== "string") {
       throw new Error("Missing required field: prompt");
     }
-    return orchestrator.sendSessionMessage(params.id, body.prompt);
+    return orchestrator.sendSessionMessage(params.id, body.prompt, {
+      brainstormParticipants: body.brainstormParticipants,
+    });
   });
 
   app.post("/api/sessions/:id/mode", async (request) => {

@@ -10,6 +10,9 @@ Demo: [Watch Agent Workbench on YouTube](https://youtu.be/wkr-dKIUKNA)
 
 ## 🚀 Main Features
 
+- 🧠 Brainstorm Mix mode for read-only multi-CLI discussion across Gemini, Codex, Claude, Qwen, and Copilot.
+- 🔥 Per-round agent selection in Brainstorm Mix: choose who participates before each round instead of locking it at session creation.
+- 🎯 `@agent` targeting in Brainstorm Mix: mention `@codex`, `@gemini`, `@claude`, `@qwen`, or `@copilot` to make only selected agents respond.
 - 🚀 Multi-project management for local git repositories.
 - 🔥 Multi-agent and multi-session workflow, with each session isolated from the others.
 - 📊 Session Overview dashboard for current progress, status, blockers, changed files, and review state.
@@ -103,6 +106,10 @@ Agent Workbench is designed around one default rule: one implementation session 
 12. Use Delivery to add, commit, push, and create a draft PR from the session branch.
 13. Use Apply patch only when you intentionally need to move reviewed changes into another branch.
 
+For read-only planning, choose Brainstorm Mix instead of a coding CLI. It asks selected CLIs to analyze the same topic with shared project context, records the transcript under `~/.agent-workbench/brainstorm/<session-id>`, and does not create branches, edit files, apply patches, or open PRs.
+
+Brainstorm Mix participants are selected per round. You can run one round with Codex and Gemini, then add Claude or Qwen in the next round, or type `@codex` / `@gemini` / `@claude` / `@qwen` / `@copilot` to target specific selected agents.
+
 <details>
 <summary>Import existing native CLI sessions</summary>
 
@@ -118,6 +125,19 @@ Imported sessions become regular Workbench sessions and reopen through each CLI'
 </details>
 
 ## CLI Backends
+
+<details>
+<summary>Brainstorm Mix</summary>
+
+- Workbench-controlled read-only discussion mode.
+- Select Gemini CLI, Codex CLI, Claude Code, Qwen Code, and/or GitHub Copilot CLI per round.
+- Use `@agent` targeting to ask only specific selected participants to respond.
+- Running participants show a live Thinking state and disappear from that state after their response arrives.
+- Each round sends the same project context and prompt to the selected CLIs.
+- Workbench saves a shared transcript in `~/.agent-workbench/brainstorm/<session-id>`.
+- No terminal attach, no worktree edits, no git delivery, and no apply/PR workflow.
+
+</details>
 
 <details>
 <summary>Gemini CLI</summary>

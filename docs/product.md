@@ -22,6 +22,7 @@ ship the session branch with add/commit/push/draft PR
 - Developers working over SSH who want a browser-based control surface.
 - Developers who want each agent task isolated in its own branch/worktree until it is reviewed.
 - Developers who want native CLI behavior but better session, diff, and delivery management.
+- Developers who want multiple CLI agents to debate or review a plan before implementation starts.
 
 ## Main Value
 
@@ -78,6 +79,36 @@ The current backend focus is native coding CLIs:
 
 Workbench does not try to reimplement every CLI feature in custom web controls. It keeps native terminal access available and adds review, dashboard, snapshots, and delivery around it.
 
+### Brainstorm Mix
+
+Brainstorm Mix is the read-only multi-agent mode.
+
+It is for questions like:
+
+- Which architecture should we choose?
+- How should a large feature be split into smaller PRs?
+- What are the risks in this repository?
+- Which implementation plan is strongest?
+
+Workbench owns the shared context and transcript. The selected CLIs are called as consultants with the same project context and user prompt. Their responses are saved under:
+
+```text
+~/.agent-workbench/brainstorm/<session-id>
+```
+
+Brainstorm Mix intentionally does not:
+
+- create a worktree branch,
+- attach a native terminal,
+- edit files,
+- run delivery,
+- apply patches,
+- open PRs.
+
+This keeps it useful for planning and review without confusing it with implementation sessions.
+
+Participants are chosen per round. A user can start with Codex and Gemini, add Claude or Qwen later, or target a specific selected participant with `@codex`, `@gemini`, `@claude`, `@qwen`, or `@copilot`. This makes Brainstorm Mix useful for lightweight comparison, second opinions, and focused follow-up without creating separate sessions.
+
 ### Voice And Screenshot Input
 
 The browser interface supports faster prompt entry:
@@ -126,6 +157,8 @@ The user selects:
 
 The session branch is a real git branch checked out in one isolated Workbench worktree. A new implementation session should normally use a new branch name. Existing branches can be selected when the user intentionally wants to continue that branch in a new Workbench session.
 
+Brainstorm Mix is the exception: it creates a discussion session instead of an implementation worktree. The user selects participants and an optional topic instead of a branch.
+
 ### Import Native CLI Session
 
 The Sessions menu can import existing native CLI sessions:
@@ -141,6 +174,7 @@ Imported sessions are linked to Workbench sessions and reopen with each CLI's na
 
 The session can use:
 
+- Brainstorm Mix read-only multi-CLI discussion,
 - Gemini ACP structured backend,
 - attached native Gemini terminal,
 - attached native Codex terminal,
@@ -210,6 +244,7 @@ Current version includes:
 - local web app,
 - local token auth,
 - Gemini, Codex, Claude, Qwen, and GitHub Copilot native terminal workflows,
+- Brainstorm Mix with per-round participant selection and `@agent` targeting,
 - git/worktree based isolation,
 - review/diff/snapshot/delivery workflow.
 

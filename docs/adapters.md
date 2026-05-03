@@ -6,14 +6,15 @@ Gemini CLI remains the first structured backend, but Workbench now also supports
 
 Current adapter paths:
 
-1. Gemini ACP through `gemini --acp`.
-2. Native Gemini terminal attach.
-3. Native Codex CLI terminal attach.
-4. Native Claude Code terminal attach.
-5. Native Qwen Code terminal attach.
-6. Native GitHub Copilot CLI terminal attach.
-7. One-shot Gemini fallback for simple/headless use.
-8. Generic PTY fallback for manual or future agent experiments.
+1. Brainstorm Mix through Workbench-controlled read-only CLI calls.
+2. Gemini ACP through `gemini --acp`.
+3. Native Gemini terminal attach.
+4. Native Codex CLI terminal attach.
+5. Native Claude Code terminal attach.
+6. Native Qwen Code terminal attach.
+7. Native GitHub Copilot CLI terminal attach.
+8. One-shot Gemini fallback for simple/headless use.
+9. Generic PTY fallback for manual or future agent experiments.
 
 ## Capability Model
 
@@ -31,6 +32,39 @@ Important capabilities:
 - cancel,
 - delivery support,
 - screenshot/path input support.
+
+## Brainstorm Mix
+
+Brainstorm Mix is not a terminal adapter. It is a Workbench orchestration mode.
+
+Workbench owns:
+
+- per-round participant selection,
+- `@agent` targeting,
+- project context assembly,
+- shared transcript storage,
+- sequential round execution,
+- live participant state,
+- summary events.
+
+Participants own:
+
+- model execution,
+- auth,
+- local CLI availability,
+- their own reasoning style.
+
+The first implementation uses each CLI's non-interactive or planning mode where available:
+
+- Gemini: `gemini --prompt ... --approval-mode plan --output-format text`
+- Codex: `codex exec --cd <project> --sandbox read-only ...`
+- Claude: `claude --print --permission-mode plan ...`
+- Qwen: `qwen --prompt ... --approval-mode plan --output-format text`
+- Copilot: `copilot --prompt ... --mode plan`
+
+Participant selection is not fixed at session creation. The UI lets the user choose participants before every round, and `@codex`, `@gemini`, `@claude`, `@qwen`, or `@copilot` narrows that round to the mentioned selected agents.
+
+Brainstorm Mix is intentionally read-only. It does not create worktree branches, attach terminals, apply patches, run delivery, or open PRs.
 
 ## Gemini ACP
 
